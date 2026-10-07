@@ -1,70 +1,97 @@
-```html
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
-    <title>Darkwood Fantasy</title>
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    >
+
+    <title>DARKWOOD</title>
 
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
-    <main id="game-container">
-        <canvas id="gameCanvas"></canvas>
+    <canvas id="gameCanvas"></canvas>
 
-        <div id="hud">
-            <div id="game-title">DARKWOOD</div>
+    <!-- HUD -->
 
-            <div id="stats">
-                <div class="stat">
-                    <span>HP</span>
-                    <div class="bar">
-                        <div id="health-bar"></div>
-                    </div>
-                </div>
+    <div id="hud">
 
-                <div class="stat">
-                    <span>STAMINA</span>
-                    <div class="bar">
-                        <div id="stamina-bar"></div>
-                    </div>
-                </div>
+        <div class="top-left">
+
+            <div class="game-title">
+                DARKWOOD
             </div>
 
-            <div id="time-display">DIA</div>
-        </div>
+            <div class="status">
 
-        <div id="interaction">
-            <span id="interaction-text"></span>
-        </div>
-
-        <div id="mobile-controls">
-
-            <div id="joystick">
-                <div id="joystick-base">
-                    <div id="joystick-stick"></div>
+                <div class="bar hp">
+                    <div id="hpBar"></div>
                 </div>
+
+                <div class="bar stamina">
+                    <div id="staminaBar"></div>
+                </div>
+
             </div>
 
-            <div id="action-buttons">
-                <button id="attack-button">⚔</button>
-                <button id="interact-button">E</button>
+            <div id="dayText">
+                DIA 1 • COGUMELOS 0
             </div>
 
         </div>
 
-        <div id="loading">
-            <div>DARKWOOD</div>
-            <small>Carregando floresta...</small>
+    </div>
+
+    <!-- Mensagens -->
+
+    <div id="interaction">
+        Explore a floresta.
+    </div>
+
+    <!-- Joystick -->
+
+    <div id="joystick">
+
+        <div id="joystickKnob"></div>
+
+    </div>
+
+    <!-- Botões -->
+
+    <div id="actions">
+
+        <button id="interactButton">
+            E
+        </button>
+
+        <button id="attackButton">
+            ⚔
+        </button>
+
+    </div>
+
+    <!-- Loading -->
+
+    <div id="loading">
+
+        <div class="loading-title">
+            DARKWOOD
         </div>
-    </main>
+
+        <div class="loading-subtitle">
+            A floresta está esperando...
+        </div>
+
+    </div>
 
     <script src="game.js"></script>
 
 </body>
-</html>
-```
 
+</html>
