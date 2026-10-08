@@ -7926,19 +7926,6 @@ V5.initialized = true;
        EXTRA MOBILE BUTTONS
     ===================================================== */
 
-    const attackButton =
-        document.getElementById(
-            "attackButton"
-        );
-
-    if(attackButton){
-
-        attackButton.addEventListener(
-            "contextmenu",
-            e => e.preventDefault()
-        );
-    }
-
     const interactButton =
         document.getElementById(
             "interactButton"
