@@ -2,9 +2,7 @@
     box-sizing: border-box;
     margin: 0;
     padding: 0;
-    -webkit-user-select: none;
-    user-select: none;
-    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 html,
@@ -12,296 +10,499 @@ body {
     width: 100%;
     height: 100%;
     overflow: hidden;
-    background: #050706;
+    background: #070907;
     font-family: Arial, sans-serif;
+    color: #eee;
 }
 
-#gameWrapper {
-    position: fixed;
-    inset: 0;
-    overflow: hidden;
-    background: #050706;
+body {
+    position: relative;
+    touch-action: none;
 }
 
 #gameCanvas {
-    position: absolute;
+    position: fixed;
     inset: 0;
     width: 100%;
     height: 100%;
     display: block;
-    image-rendering: auto;
+    background: #111;
 }
 
-/* HUD */
+/* =========================
+   HUD
+========================= */
 
 #hud {
-    position: absolute;
+    position: fixed;
     inset: 0;
     pointer-events: none;
+    z-index: 10;
 }
 
-#topHud {
+.top-left {
     position: absolute;
-    top: 14px;
-    left: 14px;
-    right: 14px;
-    display: flex;
-    align-items: flex-start;
-    gap: 18px;
+    top: 15px;
+    left: 15px;
+    width: 240px;
 }
 
-#gameTitle {
-    color: #ddd8c8;
-    font-size: 20px;
+.game-title {
+    font-size: 22px;
     font-weight: 900;
     letter-spacing: 5px;
+    margin-bottom: 10px;
     text-shadow: 0 2px 8px #000;
 }
 
-#bars {
+.bar-container {
+    position: relative;
     width: 220px;
+    height: 16px;
+    margin-bottom: 5px;
 }
 
 .bar {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    margin-bottom: 6px;
-}
-
-.bar span {
-    width: 62px;
-    color: #d4d0c3;
-    font-size: 10px;
-    font-weight: bold;
-}
-
-.barBackground {
-    height: 9px;
-    flex: 1;
-    background: rgba(0, 0, 0, 0.65);
-    border: 1px solid rgba(255,255,255,.15);
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, .65);
+    border: 1px solid rgba(255, 255, 255, .15);
+    border-radius: 3px;
     overflow: hidden;
 }
 
-#hpBar,
-#staminaBar {
-    height: 100%;
+.bar div {
     width: 100%;
-    transition: width .15s linear;
+    height: 100%;
+    transition: width .15s;
 }
 
-#hpBar {
-    background: #a83a35;
+.hp div {
+    background: #b52c35;
 }
 
-#staminaBar {
-    background: #9b8a45;
+.stamina div {
+    background: #a48a28;
 }
 
-#dayText,
-#resourceText {
-    color: #c9c5b8;
+.bar-container span {
+    position: absolute;
+    inset: 0;
+    text-align: center;
     font-size: 11px;
-    padding-top: 3px;
-    text-shadow: 0 2px 5px #000;
+    line-height: 16px;
+    text-shadow: 0 1px 3px #000;
 }
+
+#dayText {
+    margin-top: 9px;
+    font-size: 12px;
+    color: #c6c6b4;
+    letter-spacing: 1px;
+}
+
+#resourceText {
+    margin-top: 6px;
+    font-size: 14px;
+    color: #e4dfc5;
+}
+
+/* =========================
+   QUEST
+========================= */
 
 #questBox {
     position: absolute;
-    left: 16px;
-    bottom: 18px;
-    width: 290px;
-    padding: 12px 14px;
-    background: rgba(8, 10, 9, .78);
-    border-left: 3px solid #82745a;
-    box-shadow: 0 5px 20px rgba(0,0,0,.4);
+    top: 15px;
+    right: 15px;
+    width: 280px;
+    padding: 12px 15px;
+    background: rgba(9, 10, 8, .78);
+    border-left: 3px solid #9b8a55;
+    box-shadow: 0 4px 20px rgba(0,0,0,.3);
 }
 
-.questTitle {
-    color: #a89c7d;
+.quest-title {
     font-size: 10px;
     letter-spacing: 2px;
-    font-weight: bold;
+    color: #b5a46d;
     margin-bottom: 5px;
 }
 
 #questText {
-    color: #ddd9ca;
     font-size: 13px;
-    line-height: 1.35;
+    line-height: 1.4;
+    color: #e0ded0;
 }
+
+/* =========================
+   INTERACTION
+========================= */
 
 #interaction {
-    position: absolute;
+    position: fixed;
     left: 50%;
-    bottom: 15%;
+    bottom: 20%;
     transform: translateX(-50%);
-    color: #e8e2cf;
+    padding: 9px 15px;
+    background: rgba(0, 0, 0, .75);
+    border: 1px solid rgba(255,255,255,.15);
+    border-radius: 5px;
     font-size: 13px;
-    text-align: center;
-    text-shadow: 0 2px 5px #000;
-}
-
-/* damage */
-
-#damageFlash {
-    position: absolute;
-    inset: 0;
-    background: rgba(170, 20, 20, .35);
     opacity: 0;
+    transition: opacity .2s;
     pointer-events: none;
-    transition: opacity .08s linear;
+    z-index: 20;
 }
 
-/* joystick */
-
-#joystick {
-    position: absolute;
-    width: 125px;
-    height: 125px;
-    left: 25px;
-    bottom: 25px;
-    border-radius: 50%;
-    background: rgba(20, 22, 20, .42);
-    border: 1px solid rgba(255,255,255,.13);
-    display: none;
+#interaction.show {
+    opacity: 1;
 }
 
-#joystickKnob {
-    position: absolute;
-    width: 55px;
-    height: 55px;
-    left: 35px;
-    top: 35px;
-    border-radius: 50%;
-    background: rgba(180, 172, 145, .32);
-    border: 1px solid rgba(255,255,255,.18);
-}
+/* =========================
+   INVENTÁRIO
+========================= */
 
-/* buttons */
-
-#attackButton,
-#dodgeButton,
-#interactButton {
-    position: absolute;
-    border: 1px solid rgba(255,255,255,.18);
-    color: #ddd8c7;
-    background: rgba(15,16,15,.72);
-    border-radius: 50%;
+#inventoryPanel {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
     display: none;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 5px 18px rgba(0,0,0,.4);
+    background: rgba(0, 0, 0, .72);
+    backdrop-filter: blur(3px);
 }
 
-#attackButton {
-    width: 76px;
-    height: 76px;
-    right: 25px;
-    bottom: 38px;
-    font-size: 29px;
+#inventoryPanel.open {
+    display: flex;
 }
 
-#dodgeButton {
-    width: 57px;
-    height: 57px;
-    right: 105px;
-    bottom: 30px;
-    font-size: 18px;
+.inventory-window {
+    width: min(720px, 92vw);
+    max-height: 90vh;
+    overflow-y: auto;
+    background:
+        linear-gradient(
+            rgba(18, 20, 17, .97),
+            rgba(10, 12, 10, .98)
+        );
+    border: 1px solid #514d3b;
+    box-shadow:
+        0 20px 80px rgba(0,0,0,.8),
+        inset 0 0 40px rgba(255,255,255,.02);
 }
 
-#interactButton {
-    width: 48px;
-    height: 48px;
-    right: 30px;
-    bottom: 125px;
-    font-size: 16px;
+.inventory-header {
+    height: 55px;
+    padding: 0 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid #34362e;
+    color: #d6c99c;
+    letter-spacing: 3px;
+    font-weight: bold;
 }
 
-/* loading */
+#closeInventory {
+    border: none;
+    background: transparent;
+    color: #aaa;
+    font-size: 22px;
+    cursor: pointer;
+}
 
-#loading {
-    position: absolute;
-    inset: 0;
-    background: #050706;
+.inventory-content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    padding: 20px;
+}
+
+.inventory-section h3 {
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: #99947d;
+    margin-bottom: 12px;
+}
+
+.inventory-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+
+.inventory-slot {
+    min-height: 95px;
+    padding: 10px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    z-index: 20;
-    transition: opacity .5s ease;
+    position: relative;
+    background: rgba(255,255,255,.025);
+    border: 1px solid #32342d;
+    color: #aaa;
+    font-size: 11px;
 }
 
-.loadingTitle {
-    color: #d8d1bd;
-    font-size: 38px;
+.inventory-slot strong {
+    position: absolute;
+    right: 7px;
+    bottom: 5px;
+    color: #e0d8bd;
+}
+
+.item-icon {
+    font-size: 28px;
+    margin-bottom: 6px;
+}
+
+.crafting {
+    border-left: 1px solid #30332d;
+    padding-left: 20px;
+}
+
+.craft-button {
+    width: 100%;
+    min-height: 57px;
+    margin-bottom: 8px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border: 1px solid #3a3c34;
+    background: #151813;
+    color: #ddd;
+    cursor: pointer;
+    text-align: left;
+}
+
+.craft-button:hover {
+    background: #20231d;
+    border-color: #766d49;
+}
+
+.craft-button span {
+    font-size: 13px;
+}
+
+.craft-button small {
+    font-size: 10px;
+    color: #8d8c7b;
+}
+
+.inventory-footer {
+    padding: 12px 18px;
+    border-top: 1px solid #30332d;
+    text-align: center;
+    color: #777;
+    font-size: 11px;
+}
+
+/* =========================
+   MOBILE
+========================= */
+
+#joystick {
+    position: fixed;
+    left: 25px;
+    bottom: 30px;
+    width: 125px;
+    height: 125px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.12);
+    z-index: 30;
+}
+
+#joystickKnob {
+    position: absolute;
+    width: 54px;
+    height: 54px;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: rgba(190,180,140,.25);
+    border: 1px solid rgba(255,255,255,.18);
+}
+
+#mobileControls {
+    position: fixed;
+    right: 22px;
+    bottom: 28px;
+    width: 175px;
+    height: 175px;
+    z-index: 30;
+}
+
+.action-button {
+    position: absolute;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,.18);
+    background: rgba(20,22,18,.75);
+    color: #ddd;
+    font-size: 18px;
+    box-shadow: 0 4px 15px rgba(0,0,0,.35);
+}
+
+.action-button:active {
+    transform: scale(.92);
+}
+
+#interactButton {
+    left: 0;
+    bottom: 50px;
+}
+
+#attackButton {
+    right: 0;
+    bottom: 75px;
+    width: 72px;
+    height: 72px;
+    font-size: 26px;
+}
+
+#dodgeButton {
+    right: 5px;
+    bottom: 0;
+}
+
+#inventoryButton {
+    left: 5px;
+    bottom: 0;
+}
+
+/* =========================
+   DAMAGE FLASH
+========================= */
+
+#damageFlash {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    pointer-events: none;
+    background: rgba(180,20,20,.3);
+    opacity: 0;
+}
+
+/* =========================
+   LOADING
+========================= */
+
+#loading {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #070907;
+    transition: opacity .7s;
+}
+
+.loading-title {
+    font-size: 42px;
     font-weight: 900;
-    letter-spacing: 9px;
+    letter-spacing: 10px;
+    color: #ddd8c2;
 }
 
-.loadingText {
-    color: #777568;
+.loading-text {
+    margin-top: 12px;
+    color: #777968;
     font-size: 12px;
-    margin-top: 14px;
 }
 
-/* mobile */
+/* =========================
+   RESPONSIVO
+========================= */
 
-@media (max-width: 800px) {
+@media (max-width: 700px) {
 
-    #topHud {
-        flex-wrap: wrap;
-        gap: 7px;
+    .top-left {
+        top: 8px;
+        left: 8px;
+        width: 190px;
     }
 
-    #gameTitle {
-        width: 100%;
+    .game-title {
         font-size: 17px;
+        letter-spacing: 3px;
     }
 
-    #bars {
-        width: 170px;
+    .bar-container {
+        width: 175px;
+        height: 13px;
+    }
+
+    .bar-container span {
+        font-size: 9px;
+        line-height: 13px;
+    }
+
+    #dayText,
+    #resourceText {
+        font-size: 10px;
     }
 
     #questBox {
-        width: 240px;
-        left: 12px;
-        bottom: 12px;
+        top: 8px;
+        right: 8px;
+        width: 175px;
+        padding: 8px 10px;
     }
 
-    #joystick,
-    #attackButton,
-    #dodgeButton,
-    #interactButton {
-        display: flex;
+    #questText {
+        font-size: 10px;
     }
 
-    #interaction {
-        bottom: 25%;
+    .quest-title {
+        font-size: 8px;
+    }
+
+    .inventory-content {
+        grid-template-columns: 1fr;
+    }
+
+    .crafting {
+        border-left: none;
+        border-top: 1px solid #30332d;
+        padding-left: 0;
+        padding-top: 20px;
+    }
+
+    .inventory-window {
+        max-height: 86vh;
     }
 }
 
-@media (max-height: 500px) {
-
-    #questBox {
-        display: none;
-    }
+@media (orientation: landscape) and (max-height: 500px) {
 
     #joystick {
-        width: 105px;
-        height: 105px;
+        width: 90px;
+        height: 90px;
+        bottom: 15px;
     }
 
     #joystickKnob {
-        width: 47px;
-        height: 47px;
-        left: 29px;
-        top: 29px;
+        width: 40px;
+        height: 40px;
     }
 
-    #attackButton {
-        width: 65px;
-        height: 65px;
+    #mobileControls {
+        transform: scale(.8);
+        transform-origin: bottom right;
+        bottom: 10px;
+    }
+
+    .top-left {
+        transform: scale(.8);
+        transform-origin: top left;
     }
 }
