@@ -1,181 +1,822 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport"
-        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Darkwood V5</title>
-  <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    >
+
+    <title>Darkwood</title>
+
+    <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
-  <canvas id="game"></canvas>
+    <!-- =====================================================
+         JOGO
+    ====================================================== -->
 
-  <!-- HUD -->
-  <div id="hud">
+    <main id="game">
 
-    <div id="status">
-      <div class="bar">
-        <span>VIDA</span>
-        <div class="bar-bg">
-          <div id="hpBar" class="bar-fill hp"></div>
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- =================================================
+             HUD PRINCIPAL
+        ================================================== -->
+
+        <section id="hud">
+
+            <div id="gameTitle">
+                DARKWOOD
+            </div>
+
+            <div id="statusPanel">
+
+                <div class="statusRow">
+                    <span>HP</span>
+
+                    <div class="bar">
+                        <div
+                            id="hpBar"
+                            class="barFill hp"
+                        ></div>
+                    </div>
+
+                    <span id="hpText">
+                        100 / 100
+                    </span>
+                </div>
+
+                <div class="statusRow">
+                    <span>STAMINA</span>
+
+                    <div class="bar">
+                        <div
+                            id="staminaBar"
+                            class="barFill stamina"
+                        ></div>
+                    </div>
+
+                    <span id="staminaText">
+                        100 / 100
+                    </span>
+                </div>
+
+                <div id="dayText">
+                    DIA 1
+                </div>
+
+                <div id="resourceText">
+                    Madeira: 0 |
+                    Pedra: 0 |
+                    Cogumelos: 0
+                </div>
+
+            </div>
+
+        </section>
+
+        <!-- =================================================
+             MISSÃO
+        ================================================== -->
+
+        <section id="questBox">
+
+            <div class="questHeader">
+                MISSÃO
+            </div>
+
+            <div id="questText">
+                Explore a floresta e encontre um cogumelo estranho.
+            </div>
+
+        </section>
+
+        <!-- =================================================
+             INTERAÇÃO
+        ================================================== -->
+
+        <div id="interaction">
+            Pressione E para interagir
         </div>
-      </div>
 
-      <div class="bar">
-        <span>ENERGIA</span>
-        <div class="bar-bg">
-          <div id="staminaBar" class="bar-fill stamina"></div>
+        <!-- =================================================
+             INVENTÁRIO
+        ================================================== -->
+
+        <section id="inventoryPanel">
+
+            <div class="inventoryHeader">
+
+                <span>
+                    INVENTÁRIO
+                </span>
+
+                <button
+                    id="closeInventory"
+                    type="button"
+                >
+                    ×
+                </button>
+
+            </div>
+
+            <div class="inventoryGrid">
+
+                <div class="inventoryItem">
+
+                    <span class="itemIcon">
+                        🪵
+                    </span>
+
+                    <span>
+                        Madeira
+                    </span>
+
+                    <strong id="invWood">
+                        0
+                    </strong>
+
+                </div>
+
+                <div class="inventoryItem">
+
+                    <span class="itemIcon">
+                        🪨
+                    </span>
+
+                    <span>
+                        Pedra
+                    </span>
+
+                    <strong id="invStone">
+                        0
+                    </strong>
+
+                </div>
+
+                <div class="inventoryItem">
+
+                    <span class="itemIcon">
+                        🍄
+                    </span>
+
+                    <span>
+                        Cogumelo
+                    </span>
+
+                    <strong id="invMushroom">
+                        0
+                    </strong>
+
+                </div>
+
+                <div class="inventoryItem">
+
+                    <span class="itemIcon">
+                        ✦
+                    </span>
+
+                    <span>
+                        Cogumelo estranho
+                    </span>
+
+                    <strong id="invStrange">
+                        0
+                    </strong>
+
+                </div>
+
+            </div>
+
+            <!-- =================================================
+                 ITENS FABRICADOS
+            ================================================== -->
+
+            <div class="inventorySectionTitle">
+                FABRICADOS
+            </div>
+
+            <div class="craftedList">
+
+                <div class="craftedItem">
+                    <span>🔥 Fogueira</span>
+                    <strong id="invCampfire">0</strong>
+                </div>
+
+                <div class="craftedItem">
+                    <span>🪓 Machado</span>
+                    <strong id="invAxe">0</strong>
+                </div>
+
+                <div class="craftedItem">
+                    <span>⚔️ Espada</span>
+                    <strong id="invSword">0</strong>
+                </div>
+
+                <div class="craftedItem">
+                    <span>🧪 Poção</span>
+                    <strong id="invPotion">0</strong>
+                </div>
+
+            </div>
+
+            <!-- =================================================
+                 CRAFTING
+            ================================================== -->
+
+            <div class="inventorySectionTitle">
+                FABRICAÇÃO
+            </div>
+
+            <div id="craftingPanel">
+
+                <button
+                    id="craftCampfire"
+                    type="button"
+                >
+                    🔥 Fogueira
+                    <small>
+                        5 madeira + 3 pedra
+                    </small>
+                </button>
+
+                <button
+                    id="craftAxe"
+                    type="button"
+                >
+                    🪓 Machado
+                    <small>
+                        8 madeira + 4 pedra
+                    </small>
+                </button>
+
+                <button
+                    id="craftSword"
+                    type="button"
+                >
+                    ⚔️ Espada simples
+                    <small>
+                        5 madeira + 8 pedra
+                    </small>
+                </button>
+
+                <button
+                    id="craftPotion"
+                    type="button"
+                >
+                    🧪 Poção simples
+                    <small>
+                        2 cogumelos + 1 madeira
+                    </small>
+                </button>
+
+            </div>
+
+        </section>
+
+        <!-- =================================================
+             HUD V5
+        ================================================== -->
+
+        <section id="v5Hud">
+
+            <div class="v5Card">
+
+                <div class="v5Level">
+                    <span id="v5Level">
+                        NÍVEL 1
+                    </span>
+
+                    <span id="v5Gold">
+                        Ouro: 0
+                    </span>
+                </div>
+
+                <div class="xpBar">
+
+                    <div
+                        id="v5XpBar"
+                        class="xpFill"
+                    ></div>
+
+                </div>
+
+                <div class="xpText">
+                    <span id="v5Xp">
+                        0 / 100 XP
+                    </span>
+                </div>
+
+                <div class="survivalStats">
+
+                    <span id="v5Hunger">
+                        Fome: 100%
+                    </span>
+
+                    <span id="v5Thirst">
+                        Sede: 100%
+                    </span>
+
+                </div>
+
+                <div
+                    id="v5Class"
+                    class="classText"
+                >
+                </div>
+
+            </div>
+
+            <div
+                id="weatherText"
+                class="weatherText"
+            >
+                Céu limpo
+            </div>
+
+        </section>
+
+        <!-- =================================================
+             NOTIFICAÇÕES
+        ================================================== -->
+
+        <div id="v5Notification">
         </div>
-      </div>
-    </div>
 
-    <div id="questBox">
-      <div class="quest-title">MISSÃO</div>
-      <div id="questName">O Cogumelo que Sussurra</div>
-      <div id="questObjective"></div>
-    </div>
+        <!-- =================================================
+             DIÁLOGO
+        ================================================== -->
 
-    <button id="inventoryButton">🎒</button>
-  </div>
+        <section
+            id="dialoguePanel"
+            class="hidden"
+        >
 
-  <!-- INVENTÁRIO -->
-  <div id="inventoryPanel" class="panel hidden">
+            <div class="dialogueName">
+                <span id="dialogueSpeaker">
+                    Eldran
+                </span>
+            </div>
 
-    <div class="panel-header">
-      <h2>Inventário</h2>
-      <button id="closeInventory">✕</button>
-    </div>
+            <div
+                id="dialogueText"
+                class="dialogueText"
+            >
+            </div>
 
-    <div class="resources">
+            <div
+                id="dialogueChoices"
+                class="dialogueChoices"
+            >
+            </div>
 
-      <div class="resource">
-        <span>🪵 Madeira</span>
-        <strong id="woodCount">0</strong>
-      </div>
+            <div class="dialogueHint">
+                Toque ou pressione ENTER
+            </div>
 
-      <div class="resource">
-        <span>🪨 Pedra</span>
-        <strong id="stoneCount">0</strong>
-      </div>
+        </section>
 
-      <div class="resource">
-        <span>🍄 Cogumelo</span>
-        <strong id="mushroomCount">0</strong>
-      </div>
+        <!-- =================================================
+             ESCOLHA DO COGUMELO
+        ================================================== -->
 
-      <div class="resource">
-        <span>🍄 Cogumelo estranho</span>
-        <strong id="strangeCount">0</strong>
-      </div>
+        <section
+            id="classSelection"
+            class="hidden"
+        >
 
-    </div>
+            <div class="classSelectionBox">
 
-    <h3>Itens fabricados</h3>
+                <div class="classTitle">
+                    O CAMINHO DO COGUMELO
+                </div>
 
-    <div class="crafted">
+                <div class="classSubtitle">
+                    Escolha cuidadosamente.
+                    Seu caminho mudará a aventura.
+                </div>
 
-      <div class="resource">
-        <span>🔥 Fogueira</span>
-        <strong id="campfireCount">0</strong>
-      </div>
+                <div class="classCards">
 
-      <div class="resource">
-        <span>🪓 Machado</span>
-        <strong id="axeCount">0</strong>
-      </div>
+                    <button
+                        class="classCard warrior"
+                        id="chooseWarrior"
+                        type="button"
+                    >
 
-      <div class="resource">
-        <span>⚔️ Espada</span>
-        <strong id="swordCount">0</strong>
-      </div>
+                        <div class="classIcon">
+                            🔴
+                        </div>
 
-      <div class="resource">
-        <span>🧪 Poção</span>
-        <strong id="potionCount">0</strong>
-      </div>
+                        <div class="className">
+                            GUERREIRO
+                        </div>
 
-    </div>
+                        <div class="classMushroom">
+                            Cogumelo vermelho
+                        </div>
 
-    <h3>Fabricar</h3>
+                        <div class="classDescription">
+                            Força, resistência e combate
+                            corpo a corpo.
+                        </div>
 
-    <div class="craft-buttons">
+                        <div class="classAbilities">
+                            ⚔️ Espada<br>
+                            🛡️ Defesa<br>
+                            💥 Golpe poderoso
+                        </div>
 
-      <button data-craft="campfire">
-        🔥 Fogueira
-        <small>5 madeira + 3 pedra</small>
-      </button>
+                    </button>
 
-      <button data-craft="axe">
-        🪓 Machado
-        <small>8 madeira + 4 pedra</small>
-      </button>
+                    <button
+                        class="classCard mage"
+                        id="chooseMage"
+                        type="button"
+                    >
 
-      <button data-craft="sword">
-        ⚔️ Espada simples
-        <small>5 madeira + 8 pedra</small>
-      </button>
+                        <div class="classIcon">
+                            🟣
+                        </div>
 
-      <button data-craft="potion">
-        🧪 Poção simples
-        <small>2 cogumelos + 1 madeira</small>
-      </button>
+                        <div class="className">
+                            MAGO
+                        </div>
 
-    </div>
+                        <div class="classMushroom">
+                            Cogumelo roxo
+                        </div>
 
-  </div>
+                        <div class="classDescription">
+                            Magia, distância e habilidades
+                            sobrenaturais.
+                        </div>
 
-  <!-- DIÁLOGO -->
-  <div id="dialoguePanel" class="dialogue hidden">
+                        <div class="classAbilities">
+                            🔥 Fogo<br>
+                            ❄️ Gelo<br>
+                            ✨ Cura
+                        </div>
 
-    <div class="dialogue-box">
+                    </button>
 
-      <div class="dialogue-header">
-        <div id="dialogueAvatar">👴</div>
+                    <button
+                        class="classCard rogue"
+                        id="chooseRogue"
+                        type="button"
+                    >
 
-        <div>
-          <div id="dialogueName">Ancião</div>
-          <div id="dialogueRole">Guardião da floresta</div>
+                        <div class="classIcon">
+                            🟢
+                        </div>
+
+                        <div class="className">
+                            DUENDE
+                        </div>
+
+                        <div class="classMushroom">
+                            Cogumelo verde
+                        </div>
+
+                        <div class="classDescription">
+                            Velocidade, furtividade e
+                            habilidades naturais.
+                        </div>
+
+                        <div class="classAbilities">
+                            🗡️ Ataque rápido<br>
+                            👁️ Furtividade<br>
+                            🪤 Armadilhas
+                        </div>
+
+                    </button>
+
+                </div>
+
+            </div>
+
+        </section>
+
+        <!-- =================================================
+             MAPA COMPLETO
+        ================================================== -->
+
+        <section
+            id="mapPanel"
+            class="hidden"
+        >
+
+            <div class="mapHeader">
+                <span>
+                    MAPA DA FLORESTA
+                </span>
+
+                <button
+                    id="closeMap"
+                    type="button"
+                >
+                    ×
+                </button>
+            </div>
+
+            <div
+                id="mapContainer"
+                class="mapContainer"
+            >
+
+                <div
+                    id="mapPlayer"
+                    class="mapMarker playerMarker"
+                >
+                </div>
+
+                <div
+                    id="mapShelter"
+                    class="mapMarker shelterMarker"
+                >
+                </div>
+
+                <div
+                    id="mapElder"
+                    class="mapMarker elderMarker"
+                >
+                </div>
+
+            </div>
+
+            <div class="mapLegend">
+
+                <span>
+                    ● Você
+                </span>
+
+                <span>
+                    ◆ Abrigo
+                </span>
+
+                <span>
+                    ✦ Local especial
+                </span>
+
+            </div>
+
+        </section>
+
+        <!-- =================================================
+             PAUSE
+        ================================================== -->
+
+        <section
+            id="pausePanel"
+            class="hidden"
+        >
+
+            <div class="pauseBox">
+
+                <div class="pauseTitle">
+                    DARKWOOD
+                </div>
+
+                <div class="pauseSubtitle">
+                    JOGO PAUSADO
+                </div>
+
+                <button
+                    id="resumeButton"
+                    type="button"
+                >
+                    CONTINUAR
+                </button>
+
+                <button
+                    id="saveButton"
+                    type="button"
+                >
+                    SALVAR JOGO
+                </button>
+
+                <button
+                    id="loadButton"
+                    type="button"
+                >
+                    CARREGAR JOGO
+                </button>
+
+                <div class="pauseHint">
+                    ESC para voltar
+                </div>
+
+            </div>
+
+        </section>
+
+        <!-- =================================================
+             CONTROLES MOBILE
+        ================================================== -->
+
+        <div id="mobileControls">
+
+            <!-- JOYSTICK -->
+
+            <div
+                id="joystick"
+                class="joystick"
+            >
+
+                <div
+                    id="joystickKnob"
+                    class="joystickKnob"
+                >
+                </div>
+
+            </div>
+
+            <!-- BOTÕES -->
+
+            <div
+                id="mobileActions"
+                class="mobileActions"
+            >
+
+                <button
+                    id="interactButton"
+                    type="button"
+                    aria-label="Interagir"
+                >
+                    E
+                </button>
+
+                <button
+                    id="attackButton"
+                    type="button"
+                    aria-label="Atacar"
+                >
+                    ⚔
+                </button>
+
+                <button
+                    id="specialButton"
+                    type="button"
+                    aria-label="Habilidade especial"
+                >
+                    ✦
+                </button>
+
+                <button
+                    id="dodgeButton"
+                    type="button"
+                    aria-label="Esquivar"
+                >
+                    ◇
+                </button>
+
+                <button
+                    id="potionButton"
+                    type="button"
+                    aria-label="Usar poção"
+                >
+                    🧪
+                </button>
+
+                <button
+                    id="eatButton"
+                    type="button"
+                    aria-label="Comer cogumelo"
+                >
+                    🍄
+                </button>
+
+                <button
+                    id="inventoryButton"
+                    type="button"
+                    aria-label="Inventário"
+                >
+                    🎒
+                </button>
+
+                <button
+                    id="mapButton"
+                    type="button"
+                    aria-label="Mapa"
+                >
+                    🗺
+                </button>
+
+            </div>
+
         </div>
-      </div>
 
-      <div id="dialogueText"></div>
+        <!-- =================================================
+             DAMAGE FLASH
+        ================================================== -->
 
-      <div id="dialogueChoices"></div>
+        <div
+            id="damageFlash"
+            class="damageFlash"
+        >
+        </div>
 
-      <button id="dialogueContinue">
-        Continuar
-      </button>
+        <!-- =================================================
+             LOADING
+        ================================================== -->
 
-    </div>
+        <section id="loading">
 
-  </div>
+            <div class="loadingTitle">
+                DARKWOOD
+            </div>
 
-  <!-- CONTROLES MOBILE -->
-  <div id="mobileControls">
+            <div class="loadingSubtitle">
+                A floresta está despertando...
+            </div>
 
-    <div id="joystick">
-      <div id="joystickKnob"></div>
-    </div>
+            <div class="loadingBar">
 
-    <div class="action-buttons">
+                <div
+                    id="loadingProgress"
+                    class="loadingProgress"
+                >
+                </div>
 
-      <button id="interactButton">E</button>
+            </div>
 
-      <button id="attackButton">⚔</button>
+        </section>
 
-      <button id="dodgeButton">↯</button>
+    </main>
 
-    </div>
+    <!-- =====================================================
+         SCRIPT PRINCIPAL
+    ====================================================== -->
 
-  </div>
+    <script src="game.js"></script>
 
-  <div id="interactionHint"></div>
+    <!-- =====================================================
+         INICIALIZAÇÃO VISUAL
+    ====================================================== -->
 
-  <div id="message"></div>
+    <script>
 
-  <script src="game.js"></script>
+        document.addEventListener(
+            "DOMContentLoaded",
+            function(){
+
+                const loading =
+                    document.getElementById(
+                        "loading"
+                    );
+
+                const progress =
+                    document.getElementById(
+                        "loadingProgress"
+                    );
+
+                let value = 0;
+
+                const timer =
+                    setInterval(
+                        function(){
+
+                            value +=
+                                Math.random() * 18;
+
+                            if(value >= 100){
+
+                                value = 100;
+
+                                clearInterval(
+                                    timer
+                                );
+
+                                setTimeout(
+                                    function(){
+
+                                        if(loading){
+                                            loading.classList.add(
+                                                "hidden"
+                                            );
+                                        }
+
+                                    },
+                                    350
+                                );
+                            }
+
+                            if(progress){
+                                progress.style.width =
+                                    value + "%";
+                            }
+
+                        },
+                        100
+                    );
+
+            }
+        );
+
+    </script>
 
 </body>
-</html>
+                  </html>
