@@ -1,349 +1,325 @@
-const canvas = document.getElementById("gameCanvas");
+const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-let W = 0;
-let H = 0;
-let DPR = Math.min(window.devicePixelRatio || 1, 2);
+let W = window.innerWidth;
+let H = window.innerHeight;
 
-function resizeCanvas() {
-    W = window.innerWidth;
-    H = window.innerHeight;
+function resize() {
+  W = window.innerWidth;
+  H = window.innerHeight;
 
-    canvas.width = W * DPR;
-    canvas.height = H * DPR;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
-    canvas.style.width = W + "px";
-    canvas.style.height = H + "px";
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
 
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  canvas.style.width = W + "px";
+  canvas.style.height = H + "px";
+
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
-window.addEventListener("resize", resizeCanvas);
-resizeCanvas();
+window.addEventListener("resize", resize);
+resize();
 
 /* =========================================================
-   WORLD
+   MUNDO
 ========================================================= */
 
 const world = {
-    width: 3600,
-    height: 2700
+  width: 3600,
+  height: 2700
 };
-
-/* =========================================================
-   PLAYER
-========================================================= */
 
 const player = {
-    x: 1800,
-    y: 1350,
+  x: 1800,
+  y: 1350,
 
-    radius: 15,
+  radius: 18,
 
-    hp: 100,
-    maxHp: 100,
+  speed: 210,
 
-    stamina: 100,
-    maxStamina: 100,
+  hp: 100,
+  maxHp: 100,
 
-    speed: 170,
+  stamina: 100,
+  maxStamina: 100,
 
-    dirX: 1,
-    dirY: 0,
+  attacking: false,
+  attackTimer: 0,
 
-    attackCooldown: 0,
-    attackTimer: 0,
+  dodging: false,
+  dodgeTimer: 0,
+  invulnerable: false,
 
-    dodgeCooldown: 0,
-    dodgeTimer: 0,
+  direction: 0,
 
-    invulnerable: 0,
+  hurtTimer: 0
+};
 
-    hurtTimer: 0
+const camera = {
+  x: player.x,
+  y: player.y,
+
+  zoom: 1,
+
+  shake: 0
 };
 
 /* =========================================================
-   GAME STATE
+   INVENTÁRIO
 ========================================================= */
 
-let gameTime = 0;
-let worldTime = 0;
-
-let day = 1;
-
-let resources = {
-    wood: 0,
-    stone: 0,
-    mushroom: 0,
-    strange: 0
+const inventory = {
+  wood: 0,
+  stone: 0,
+  mushroom: 0,
+  strangeMushroom: 0
 };
 
-let inventoryOpen = false;
-
-let craftedItems = {
-    campfire: 0,
-    axe: 0,
-    sword: 0,
-    potion: 0
-};
-
-let questStage = 0;
-
-let messageTimer = 0;
-let messageText = "";
-
-let camera = {
-    x: player.x,
-    y: player.y,
-    shake: 0,
-    zoom: 1
+const crafted = {
+  campfire: 0,
+  axe: 0,
+  sword: 0,
+  potion: 0
 };
 
 /* =========================================================
-   ARRAYS
+   QUEST
+========================================================= */
+
+const quest = {
+  stage: 0,
+
+  name: "O Cogumelo que Sussurra",
+
+  elderTrust: 0,
+
+  completed: false
+};
+
+/*
+0 = falar com o ancião
+1 = encontrar cogumelo
+2 = voltar ao ancião
+3 = reunir materiais
+4 = concluída
+*/
+
+/* =========================================================
+   NPC
+========================================================= */
+
+const elder = {
+  x: 1800,
+  y: 1180,
+
+  radius: 22,
+
+  name: "Ancião",
+
+  active: true
+};
+
+/* =========================================================
+   OBJETOS
+========================================================= */
+
+const shelter = {
+  x: 1800,
+  y: 1350,
+
+  width: 210,
+  height: 150
+};
+
+const campfire = {
+  x: 1800,
+  y: 1470,
+
+  radius: 32
+};
+
+/* =========================================================
+   FLORESTA
 ========================================================= */
 
 const trees = [];
 const rocks = [];
 const mushrooms = [];
-const woods = [];
-const stones = [];
-const enemies = [];
+const goblins = [];
 const particles = [];
 
-/* =========================================================
-   RANDOM
-========================================================= */
-
 function random(min, max) {
-    return Math.random() * (max - min) + min;
-}
-
-function randomInt(min, max) {
-    return Math.floor(random(min, max + 1));
+  return Math.random() * (max - min) + min;
 }
 
 function distance(a, b) {
-    return Math.hypot(a.x - b.x, a.y - b.y);
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+/* árvores */
+
+for (let i = 0; i < 170; i++) {
+
+  let x = random(100, world.width - 100);
+  let y = random(100, world.height - 100);
+
+  if (
+    Math.abs(x - shelter.x) < 250 &&
+    Math.abs(y - shelter.y) < 230
+  ) {
+    i--;
+    continue;
+  }
+
+  trees.push({
+    x,
+    y,
+    size: random(28, 55)
+  });
+}
+
+/* pedras */
+
+for (let i = 0; i < 100; i++) {
+
+  rocks.push({
+    x: random(80, world.width - 80),
+    y: random(80, world.height - 80),
+    size: random(10, 22)
+  });
+}
+
+/* cogumelos */
+
+for (let i = 0; i < 70; i++) {
+
+  mushrooms.push({
+    x: random(80, world.width - 80),
+    y: random(80, world.height - 80),
+
+    strange: i === 0,
+
+    collected: false
+  });
 }
 
 /* =========================================================
-   SHELTER
+   GOBLINS
 ========================================================= */
 
-const shelter = {
-    x: 1800,
-    y: 1350,
-    width: 260,
-    height: 190
-};
+for (let i = 0; i < 14; i++) {
 
-const campfire = {
-    x: 1800,
-    y: 1490,
-    radius: 32
-};
+  goblins.push({
+    x: random(500, world.width - 500),
+    y: random(400, world.height - 400),
+
+    radius: 17,
+
+    hp: 45,
+    maxHp: 45,
+
+    speed: random(45, 65),
+
+    attackCooldown: random(0, 2),
+
+    wanderAngle: random(0, Math.PI * 2),
+
+    hitTimer: 0,
+
+    dead: false
+  });
+}
 
 /* =========================================================
-   WORLD GENERATION
+   PARTÍCULAS
 ========================================================= */
 
-function insideShelter(x, y, margin = 0) {
-    return (
-        x > shelter.x - shelter.width / 2 - margin &&
-        x < shelter.x + shelter.width / 2 + margin &&
-        y > shelter.y - shelter.height / 2 - margin &&
-        y < shelter.y + shelter.height / 2 + margin
-    );
-}
+function particle(x, y, color = "#fff", amount = 8) {
 
-function generateWorld() {
+  for (let i = 0; i < amount; i++) {
 
-    trees.length = 0;
-    rocks.length = 0;
-    mushrooms.length = 0;
-    woods.length = 0;
-    stones.length = 0;
-    enemies.length = 0;
+    particles.push({
+      x,
+      y,
 
-    for (let i = 0; i < 220; i++) {
+      vx: random(-70, 70),
+      vy: random(-70, 70),
 
-        const x = random(100, world.width - 100);
-        const y = random(100, world.height - 100);
+      life: random(.3, .7),
+      maxLife: .7,
 
-        if (!insideShelter(x, y, 180)) {
-            trees.push({
-                x,
-                y,
-                radius: random(22, 34)
-            });
-        }
-    }
-
-    for (let i = 0; i < 90; i++) {
-
-        const x = random(80, world.width - 80);
-        const y = random(80, world.height - 80);
-
-        if (!insideShelter(x, y, 130)) {
-            rocks.push({
-                x,
-                y,
-                radius: random(14, 23)
-            });
-        }
-    }
-
-    for (let i = 0; i < 40; i++) {
-
-        const x = random(80, world.width - 80);
-        const y = random(80, world.height - 80);
-
-        if (!insideShelter(x, y, 100)) {
-
-            mushrooms.push({
-                x,
-                y,
-                radius: 8,
-                strange: Math.random() < .2,
-                collected: false
-            });
-        }
-    }
-
-    for (let i = 0; i < 50; i++) {
-
-        const x = random(80, world.width - 80);
-        const y = random(80, world.height - 80);
-
-        woods.push({
-            x,
-            y,
-            radius: 8,
-            collected: false
-        });
-    }
-
-    for (let i = 0; i < 50; i++) {
-
-        const x = random(80, world.width - 80);
-        const y = random(80, world.height - 80);
-
-        stones.push({
-            x,
-            y,
-            radius: 8,
-            collected: false
-        });
-    }
-
-    for (let i = 0; i < 9; i++) {
-
-        let x;
-        let y;
-
-        do {
-            x = random(300, world.width - 300);
-            y = random(300, world.height - 300);
-        } while (
-            insideShelter(x, y, 300) ||
-            Math.hypot(x - player.x, y - player.y) < 500
-        );
-
-        enemies.push({
-            x,
-            y,
-            radius: 18,
-
-            hp: 60,
-            maxHp: 60,
-
-            speed: random(45, 65),
-
-            attackCooldown: random(0, 2),
-
-            wanderTimer: random(1, 4),
-
-            dirX: random(-1, 1),
-            dirY: random(-1, 1),
-
-            hitTimer: 0
-        });
-    }
-}
-
-generateWorld();
-
-/* =========================================================
-   COLLISIONS
-========================================================= */
-
-function isBlocked(x, y, radius) {
-
-    for (const tree of trees) {
-
-        if (
-            Math.hypot(x - tree.x, y - tree.y) <
-            radius + tree.radius * .65
-        ) {
-            return true;
-        }
-    }
-
-    for (const rock of rocks) {
-
-        if (
-            Math.hypot(x - rock.x, y - rock.y) <
-            radius + rock.radius * .7
-        ) {
-            return true;
-        }
-    }
-
-    return false;
+      color
+    });
+  }
 }
 
 /* =========================================================
-   MOVEMENT
+   CONTROLES
 ========================================================= */
 
 const keys = {};
 
 window.addEventListener("keydown", e => {
 
-    keys[e.key.toLowerCase()] = true;
+  keys[e.key.toLowerCase()] = true;
 
-    if (
-        e.key.toLowerCase() === "i" ||
-        e.key.toLowerCase() === "b"
-    ) {
-        toggleInventory();
-    }
+  if (e.key.toLowerCase() === "i" ||
+      e.key.toLowerCase() === "b") {
 
-    if (e.key === " " || e.key.toLowerCase() === "j") {
-        attack();
-    }
+    toggleInventory();
+  }
 
-    if (
-        e.key === "Shift" ||
-        e.key.toLowerCase() === "k"
-    ) {
-        dodge();
-    }
+  if (e.key.toLowerCase() === "e") {
 
-    if (e.key.toLowerCase() === "e") {
-        interact();
+    if (dialogueOpen) {
+      advanceDialogue();
+    } else {
+      interact();
     }
+  }
+
+  if (
+    e.key === "Enter" &&
+    dialogueOpen
+  ) {
+    advanceDialogue();
+  }
+
+  if (
+    e.key === " " ||
+    e.key.toLowerCase() === "j"
+  ) {
+
+    if (!dialogueOpen) {
+      attack();
+    }
+  }
+
+  if (
+    e.key === "Shift" ||
+    e.key.toLowerCase() === "k"
+  ) {
+
+    if (!dialogueOpen) {
+      dodge();
+    }
+  }
 });
 
 window.addEventListener("keyup", e => {
-    keys[e.key.toLowerCase()] = false;
+  keys[e.key.toLowerCase()] = false;
 });
 
-let joystick = {
-    active: false,
-    x: 0,
-    y: 0
+/* =========================================================
+   MOVIMENTO
+========================================================= */
+
+const joystick = {
+  active: false,
+  x: 0,
+  y: 0
 };
 
 const joystickElement = document.getElementById("joystick");
@@ -351,1801 +327,1638 @@ const joystickKnob = document.getElementById("joystickKnob");
 
 function updateJoystick(clientX, clientY) {
 
-    const rect = joystickElement.getBoundingClientRect();
+  const rect = joystickElement.getBoundingClientRect();
 
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
 
-    let dx = clientX - centerX;
-    let dy = clientY - centerY;
+  let dx = clientX - centerX;
+  let dy = clientY - centerY;
 
-    const max = rect.width / 2 - 28;
+  const max = 42;
 
-    const len = Math.hypot(dx, dy);
+  const length = Math.hypot(dx, dy);
 
-    if (len > max) {
+  if (length > max) {
 
-        dx = dx / len * max;
-        dy = dy / len * max;
-    }
+    dx = dx / length * max;
+    dy = dy / length * max;
+  }
 
-    joystick.x = dx / max;
-    joystick.y = dy / max;
+  joystick.x = dx / max;
+  joystick.y = dy / max;
 
-    joystickKnob.style.transform =
-        `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+  joystickKnob.style.transform =
+    `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+}
+
+function resetJoystick() {
+
+  joystick.active = false;
+
+  joystick.x = 0;
+  joystick.y = 0;
+
+  joystickKnob.style.transform =
+    "translate(-50%, -50%)";
 }
 
 joystickElement.addEventListener("pointerdown", e => {
 
-    joystick.active = true;
+  joystick.active = true;
 
-    joystickElement.setPointerCapture(e.pointerId);
+  joystickElement.setPointerCapture(e.pointerId);
 
-    updateJoystick(e.clientX, e.clientY);
+  updateJoystick(e.clientX, e.clientY);
 });
 
 joystickElement.addEventListener("pointermove", e => {
 
-    if (joystick.active) {
-        updateJoystick(e.clientX, e.clientY);
-    }
+  if (!joystick.active) return;
+
+  updateJoystick(e.clientX, e.clientY);
 });
 
 joystickElement.addEventListener("pointerup", resetJoystick);
 joystickElement.addEventListener("pointercancel", resetJoystick);
 
-function resetJoystick() {
-
-    joystick.active = false;
-    joystick.x = 0;
-    joystick.y = 0;
-
-    joystickKnob.style.transform =
-        "translate(-50%, -50%)";
-}
-
 /* =========================================================
-   INVENTORY
-========================================================= */
-
-const inventoryPanel =
-    document.getElementById("inventoryPanel");
-
-const inventoryButton =
-    document.getElementById("inventoryButton");
-
-const closeInventory =
-    document.getElementById("closeInventory");
-
-function toggleInventory() {
-
-    inventoryOpen = !inventoryOpen;
-
-    inventoryPanel.classList.toggle(
-        "open",
-        inventoryOpen
-    );
-
-    updateInventoryUI();
-}
-
-function updateInventoryUI() {
-
-    document.getElementById("invWood").textContent =
-        resources.wood;
-
-    document.getElementById("invStone").textContent =
-        resources.stone;
-
-    document.getElementById("invMushroom").textContent =
-        resources.mushroom;
-
-    document.getElementById("invStrange").textContent =
-        resources.strange;
-}
-
-inventoryButton.addEventListener(
-    "click",
-    toggleInventory
-);
-
-closeInventory.addEventListener(
-    "click",
-    toggleInventory
-);
-
-inventoryPanel.addEventListener("pointerdown", e => {
-
-    if (e.target === inventoryPanel) {
-        toggleInventory();
-    }
-});
-
-/* =========================================================
-   CRAFTING
-========================================================= */
-
-const recipes = {
-
-    campfire: {
-        name: "Fogueira",
-        costs: {
-            wood: 5,
-            stone: 3
-        }
-    },
-
-    axe: {
-        name: "Machado",
-        costs: {
-            wood: 8,
-            stone: 4
-        }
-    },
-
-    sword: {
-        name: "Espada simples",
-        costs: {
-            wood: 5,
-            stone: 8
-        }
-    },
-
-    potion: {
-        name: "Poção simples",
-        costs: {
-            mushroom: 2,
-            wood: 1
-        }
-    }
-};
-
-document.querySelectorAll(".craft-button")
-    .forEach(button => {
-
-        button.addEventListener("click", () => {
-
-            const recipe =
-                recipes[button.dataset.recipe];
-
-            craft(button.dataset.recipe, recipe);
-        });
-    });
-
-function hasResources(costs) {
-
-    for (const key in costs) {
-
-        if (resources[key] < costs[key]) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-function craft(id, recipe) {
-
-    if (!hasResources(recipe.costs)) {
-
-        showMessage(
-            "Você não possui recursos suficientes."
-        );
-
-        return;
-    }
-
-    for (const key in recipe.costs) {
-
-        resources[key] -= recipe.costs[key];
-    }
-
-    craftedItems[id]++;
-
-    updateInventoryUI();
-    updateHUD();
-
-    showMessage(
-        `${recipe.name} fabricado.`
-    );
-
-    createCraftParticles();
-}
-
-/* =========================================================
-   CRAFT PARTICLES
-========================================================= */
-
-function createCraftParticles() {
-
-    for (let i = 0; i < 18; i++) {
-
-        particles.push({
-            x: player.x + random(-15, 15),
-            y: player.y + random(-20, 10),
-
-            vx: random(-50, 50),
-            vy: random(-80, -20),
-
-            life: random(.4, .8),
-            maxLife: .8,
-
-            size: random(2, 5),
-
-            type: "craft"
-        });
-    }
-}
-
-/* =========================================================
-   ATTACK
+   AÇÕES
 ========================================================= */
 
 function attack() {
 
-    if (inventoryOpen) return;
+  if (player.attackTimer > 0) return;
+  if (player.dodging) return;
 
-    if (player.attackCooldown > 0) return;
+  player.attacking = true;
+  player.attackTimer = .35;
 
-    if (player.stamina < 12) {
+  const attackRange = 65;
 
-        showMessage("Sem energia.");
+  goblins.forEach(g => {
 
-        return;
+    if (g.dead) return;
+
+    const d = distance(player, g);
+
+    if (d < attackRange) {
+
+      g.hp -= 20;
+      g.hitTimer = .18;
+
+      const angle =
+        Math.atan2(g.y - player.y, g.x - player.x);
+
+      g.x += Math.cos(angle) * 30;
+      g.y += Math.sin(angle) * 30;
+
+      particle(g.x, g.y, "#d9d9d9", 10);
+
+      camera.shake = 5;
+
+      if (g.hp <= 0) {
+
+        g.dead = true;
+
+        particle(g.x, g.y, "#8c5c5c", 18);
+
+        inventory.wood += 1;
+      }
     }
-
-    player.stamina -= 12;
-
-    player.attackCooldown = .45;
-    player.attackTimer = .16;
-
-    camera.shake = 5;
-
-    for (const enemy of enemies) {
-
-        if (enemy.hp <= 0) continue;
-
-        const dx = enemy.x - player.x;
-        const dy = enemy.y - player.y;
-
-        const dist = Math.hypot(dx, dy);
-
-        if (dist > 75) continue;
-
-        const dot =
-            (dx / Math.max(dist, 1)) * player.dirX +
-            (dy / Math.max(dist, 1)) * player.dirY;
-
-        if (dot < .15) continue;
-
-        enemy.hp -= 25;
-
-        enemy.hitTimer = .2;
-
-        enemy.x += player.dirX * 25;
-        enemy.y += player.dirY * 25;
-
-        createHitParticles(
-            enemy.x,
-            enemy.y
-        );
-
-        if (enemy.hp <= 0) {
-
-            resources.wood += 1;
-
-            showMessage(
-                "Goblin derrotado. +1 madeira"
-            );
-
-            createDeathParticles(
-                enemy.x,
-                enemy.y
-            );
-        }
-    }
+  });
 }
-
-/* =========================================================
-   DODGE
-========================================================= */
 
 function dodge() {
 
-    if (inventoryOpen) return;
+  if (player.dodging) return;
+  if (player.stamina < 25) return;
 
-    if (player.dodgeCooldown > 0) return;
+  player.stamina -= 25;
 
-    if (player.stamina < 25) {
+  player.dodging = true;
+  player.invulnerable = true;
 
-        showMessage("Sem energia.");
+  player.dodgeTimer = .25;
 
-        return;
-    }
-
-    player.stamina -= 25;
-
-    player.dodgeCooldown = .7;
-    player.dodgeTimer = .22;
-    player.invulnerable = .25;
-
-    camera.shake = 3;
-
-    createDodgeParticles();
+  particle(player.x, player.y, "#b9c6c0", 10);
 }
 
 /* =========================================================
-   INTERACTION
+   INTERAÇÃO
 ========================================================= */
+
+function nearestInteractable() {
+
+  const d = distance(player, elder);
+
+  if (d < 85) {
+    return elder;
+  }
+
+  return null;
+}
 
 function interact() {
 
-    if (inventoryOpen) return;
+  if (dialogueOpen) {
+    advanceDialogue();
+    return;
+  }
 
-    let nearest = null;
-    let nearestDist = Infinity;
+  const target = nearestInteractable();
 
-    for (const mushroom of mushrooms) {
-
-        if (mushroom.collected) continue;
-
-        const d = distance(player, mushroom);
-
-        if (d < nearestDist) {
-
-            nearest = mushroom;
-            nearestDist = d;
-        }
-    }
-
-    for (const wood of woods) {
-
-        if (wood.collected) continue;
-
-        const d = distance(player, wood);
-
-        if (d < nearestDist) {
-
-            nearest = wood;
-            nearestDist = d;
-        }
-    }
-
-    for (const stone of stones) {
-
-        if (stone.collected) continue;
-
-        const d = distance(player, stone);
-
-        if (d < nearestDist) {
-
-            nearest = stone;
-            nearestDist = d;
-        }
-    }
-
-    if (!nearest || nearestDist > 55) {
-
-        if (
-            Math.hypot(
-                player.x - shelter.x,
-                player.y - shelter.y
-            ) < 180
-        ) {
-
-            showMessage(
-                "Abrigo: local seguro."
-            );
-
-            return;
-        }
-
-        showMessage(
-            "Não há nada para interagir aqui."
-        );
-
-        return;
-    }
-
-    collectObject(nearest);
+  if (target === elder) {
+    talkToElder();
+  }
 }
 
 /* =========================================================
-   COLLECTION
+   DIÁLOGOS
 ========================================================= */
 
-function collectObject(object) {
+const dialoguePanel =
+  document.getElementById("dialoguePanel");
 
-    if (object.collected) return;
+const dialogueName =
+  document.getElementById("dialogueName");
 
-    object.collected = true;
+const dialogueRole =
+  document.getElementById("dialogueRole");
 
-    if (mushrooms.includes(object)) {
+const dialogueText =
+  document.getElementById("dialogueText");
 
-        if (object.strange) {
+const dialogueChoices =
+  document.getElementById("dialogueChoices");
 
-            resources.strange++;
+const dialogueContinue =
+  document.getElementById("dialogueContinue");
 
-            showMessage(
-                "Você encontrou um cogumelo estranho."
-            );
+let dialogueOpen = false;
 
-            if (questStage === 0) {
+let dialogueQueue = [];
+let dialogueIndex = 0;
 
-                questStage = 1;
-            }
+let currentChoices = null;
 
-        } else {
+function openDialogue(lines, choices = null) {
 
-            resources.mushroom++;
+  dialogueOpen = true;
 
-            showMessage(
-                "Cogumelo coletado."
-            );
+  dialoguePanel.classList.remove("hidden");
+
+  dialogueQueue = lines;
+
+  dialogueIndex = 0;
+
+  currentChoices = choices;
+
+  dialogueChoices.innerHTML = "";
+
+  dialogueContinue.style.display = "block";
+
+  showDialogueLine();
+}
+
+function showDialogueLine() {
+
+  if (!dialogueQueue[dialogueIndex]) {
+
+    finishDialogue();
+
+    return;
+  }
+
+  const line = dialogueQueue[dialogueIndex];
+
+  dialogueName.textContent =
+    line.name || "Ancião";
+
+  dialogueRole.textContent =
+    line.role || "Guardião da floresta";
+
+  dialogueText.textContent =
+    line.text;
+
+  dialogueChoices.innerHTML = "";
+
+  if (
+    currentChoices &&
+    dialogueIndex === dialogueQueue.length - 1
+  ) {
+
+    dialogueContinue.style.display = "none";
+
+    currentChoices.forEach(choice => {
+
+      const button =
+        document.createElement("button");
+
+      button.className = "dialogue-choice";
+
+      button.textContent = choice.text;
+
+      button.onclick = () => {
+
+        choice.action();
+
+        finishDialogue();
+      };
+
+      dialogueChoices.appendChild(button);
+    });
+
+  } else {
+
+    dialogueContinue.style.display = "block";
+  }
+}
+
+function advanceDialogue() {
+
+  if (!dialogueOpen) return;
+
+  if (
+    currentChoices &&
+    dialogueIndex === dialogueQueue.length - 1
+  ) {
+    return;
+  }
+
+  dialogueIndex++;
+
+  showDialogueLine();
+}
+
+function finishDialogue() {
+
+  dialogueOpen = false;
+
+  dialoguePanel.classList.add("hidden");
+
+  currentChoices = null;
+  dialogueChoices.innerHTML = "";
+
+  updateQuestText();
+}
+
+/* =========================================================
+   ANCIÃO
+========================================================= */
+
+function talkToElder() {
+
+  if (quest.stage === 0) {
+
+    openDialogue([
+      {
+        name: "Ancião",
+        role: "Guardião da floresta",
+        text:
+          "Você finalmente chegou. Há algo errado com esta floresta."
+      },
+      {
+        name: "Ancião",
+        role: "Guardião da floresta",
+        text:
+          "Durante a noite, ouvi uma espécie de sussurro vindo das árvores."
+      },
+      {
+        name: "Ancião",
+        role: "Guardião da floresta",
+        text:
+          "Encontre um cogumelo estranho. Se encontrar um, não o destrua."
+      },
+      {
+        name: "Ancião",
+        role: "Guardião da floresta",
+        text:
+          "Traga-o para mim. Preciso saber o que está despertando."
+      }
+    ]);
+
+    quest.stage = 1;
+
+    updateQuestText();
+
+    return;
+  }
+
+  if (quest.stage === 1) {
+
+    openDialogue([
+      {
+        name: "Ancião",
+        text:
+          "Você ainda não encontrou o cogumelo."
+      },
+      {
+        name: "Ancião",
+        text:
+          "Procure nas partes mais antigas da floresta."
+      }
+    ]);
+
+    return;
+  }
+
+  if (quest.stage === 2) {
+
+    openDialogue(
+      [
+        {
+          name: "Ancião",
+          text:
+            "Então era verdade... você encontrou o cogumelo."
+        },
+        {
+          name: "Ancião",
+          text:
+            "Algo está despertando sob esta floresta."
+        },
+        {
+          name: "Ancião",
+          text:
+            "Mas ainda não estamos preparados."
         }
-    }
+      ],
+      [
+        {
+          text: "Contar tudo o que aconteceu",
+          action: () => {
 
-    else if (woods.includes(object)) {
+            quest.elderTrust = 1;
 
-        resources.wood++;
+            quest.stage = 3;
 
-        showMessage(
-            "Madeira coletada. +1"
-        );
-    }
+            showMessage(
+              "O Ancião agora confia em você."
+            );
+          }
+        },
 
-    else if (stones.includes(object)) {
+        {
+          text: "Esconder parte do que aconteceu",
+          action: () => {
 
-        resources.stone++;
+            quest.elderTrust = 0;
 
-        showMessage(
-            "Pedra coletada. +1"
-        );
-    }
+            quest.stage = 3;
 
-    updateHUD();
-    updateInventoryUI();
-
-    createCollectionParticles(
-        object.x,
-        object.y
+            showMessage(
+              "Você decidiu guardar um segredo."
+            );
+          }
+        }
+      ]
     );
+
+    return;
+  }
+
+  if (quest.stage === 3) {
+
+    const enoughResources =
+      inventory.wood >= 5 &&
+      inventory.stone >= 3;
+
+    if (!enoughResources) {
+
+      openDialogue([
+        {
+          name: "Ancião",
+          text:
+            "Precisamos reforçar o abrigo antes da próxima noite."
+        },
+        {
+          name: "Ancião",
+          text:
+            "Traga 5 madeiras e 3 pedras."
+        },
+        {
+          name: "Ancião",
+          text:
+            `Você possui ${inventory.wood}/5 madeiras e ${inventory.stone}/3 pedras.`
+        }
+      ]);
+
+      return;
+    }
+
+    inventory.wood -= 5;
+    inventory.stone -= 3;
+
+    quest.stage = 4;
+    quest.completed = true;
+
+    crafted.potion += 1;
+
+    openDialogue([
+      {
+        name: "Ancião",
+        text:
+          "Excelente. O abrigo ficará protegido por mais uma noite."
+      },
+      {
+        name: "Ancião",
+        text:
+          "Você provou que pode sobreviver nesta floresta."
+      },
+      {
+        name: "Ancião",
+        text:
+          "Mas o verdadeiro perigo ainda está escondido."
+      }
+    ]);
+
+    showMessage(
+      "Missão concluída! Você recebeu uma poção."
+    );
+
+    updateQuestText();
+
+    return;
+  }
+
+  if (quest.stage === 4) {
+
+    if (quest.elderTrust === 1) {
+
+      openDialogue([
+        {
+          name: "Ancião",
+          text:
+            "Você fez a escolha certa ao confiar em mim."
+        },
+        {
+          name: "Ancião",
+          text:
+            "Quando estiver preparado, procure as ruínas ao norte."
+        }
+      ]);
+
+    } else {
+
+      openDialogue([
+        {
+          name: "Ancião",
+          text:
+            "Há algo que você ainda não me contou."
+        },
+        {
+          name: "Ancião",
+          text:
+            "A floresta percebe quando alguém esconde a verdade."
+        }
+      ]);
+    }
+  }
 }
 
 /* =========================================================
-   PARTICLES
+   QUEST
 ========================================================= */
 
-function createCollectionParticles(x, y) {
+function updateQuestText() {
 
-    for (let i = 0; i < 10; i++) {
+  const objective =
+    document.getElementById("questObjective");
 
-        particles.push({
-            x,
-            y,
+  if (quest.stage === 0) {
 
-            vx: random(-25, 25),
-            vy: random(-70, -20),
+    objective.textContent =
+      "Fale com o Ancião no abrigo.";
 
-            life: random(.4, .7),
-            maxLife: .7,
+  } else if (quest.stage === 1) {
 
-            size: random(2, 4),
+    objective.textContent =
+      "Encontre o cogumelo estranho na floresta.";
 
-            type: "collection"
-        });
-    }
-}
+  } else if (quest.stage === 2) {
 
-function createHitParticles(x, y) {
+    objective.textContent =
+      "Volte ao abrigo e fale com o Ancião.";
 
-    for (let i = 0; i < 10; i++) {
+  } else if (quest.stage === 3) {
 
-        particles.push({
-            x,
-            y,
+    objective.textContent =
+      `Reúna 5 madeiras e 3 pedras. (${inventory.wood}/5 madeira • ${inventory.stone}/3 pedra)`;
 
-            vx: random(-100, 100),
-            vy: random(-100, 30),
+  } else {
 
-            life: random(.2, .45),
-            maxLife: .45,
-
-            size: random(2, 5),
-
-            type: "hit"
-        });
-    }
-}
-
-function createDeathParticles(x, y) {
-
-    for (let i = 0; i < 25; i++) {
-
-        particles.push({
-            x,
-            y,
-
-            vx: random(-120, 120),
-            vy: random(-130, 80),
-
-            life: random(.4, .9),
-            maxLife: .9,
-
-            size: random(2, 6),
-
-            type: "death"
-        });
-    }
-}
-
-function createDodgeParticles() {
-
-    for (let i = 0; i < 12; i++) {
-
-        particles.push({
-            x: player.x,
-            y: player.y,
-
-            vx: random(-60, 60),
-            vy: random(-60, 60),
-
-            life: random(.2, .45),
-            maxLife: .45,
-
-            size: random(2, 5),
-
-            type: "dodge"
-        });
-    }
+    objective.textContent =
+      "Missão concluída. A floresta esconde outros segredos...";
+  }
 }
 
 /* =========================================================
-   DAMAGE
+   COLETA
 ========================================================= */
 
-function damagePlayer(amount, enemy) {
+function collectResources() {
 
-    if (player.invulnerable > 0) return;
+  mushrooms.forEach(m => {
 
-    player.hp -= amount;
+    if (m.collected) return;
 
-    player.hurtTimer = .25;
+    const d = distance(player, m);
 
-    camera.shake = 10;
+    if (d < 32) {
 
-    document.getElementById(
-        "damageFlash"
-    ).style.opacity = "1";
+      m.collected = true;
 
-    setTimeout(() => {
+      if (m.strange) {
 
-        document.getElementById(
-            "damageFlash"
-        ).style.opacity = "0";
+        inventory.strangeMushroom++;
 
-    }, 100);
-
-    if (enemy) {
-
-        const dx = player.x - enemy.x;
-        const dy = player.y - enemy.y;
-
-        const len = Math.hypot(dx, dy) || 1;
-
-        player.x += dx / len * 30;
-        player.y += dy / len * 30;
-    }
-
-    if (player.hp <= 0) {
-
-        player.hp = player.maxHp;
-        player.stamina = player.maxStamina;
-
-        player.x = shelter.x;
-        player.y = shelter.y;
+        quest.stage = 2;
 
         showMessage(
-            "Você caiu. A floresta trouxe você de volta ao abrigo."
+          "Você encontrou o cogumelo estranho."
         );
+
+        particle(
+          m.x,
+          m.y,
+          "#c47cff",
+          20
+        );
+
+      } else {
+
+        inventory.mushroom++;
+
+        particle(
+          m.x,
+          m.y,
+          "#d27c8d",
+          10
+        );
+      }
+
+      updateQuestText();
     }
+  });
+
+  rocks.forEach(r => {
+
+    if (distance(player, r) < r.size + 25) {
+
+      if (Math.random() < .03) {
+
+        inventory.stone++;
+
+        particle(
+          r.x,
+          r.y,
+          "#aaa",
+          5
+        );
+
+        updateQuestText();
+      }
+    }
+  });
+
+  trees.forEach(t => {
+
+    if (distance(player, t) < t.size + 25) {
+
+      if (Math.random() < .025) {
+
+        inventory.wood++;
+
+        particle(
+          t.x,
+          t.y,
+          "#b07a48",
+          5
+        );
+
+        updateQuestText();
+      }
+    }
+  });
 }
 
 /* =========================================================
-   ENEMIES
+   CRAFT
 ========================================================= */
 
-function updateEnemies(dt) {
+function craft(type) {
 
-    for (const enemy of enemies) {
+  let success = false;
 
-        if (enemy.hp <= 0) continue;
+  if (type === "campfire") {
 
-        enemy.hitTimer =
-            Math.max(0, enemy.hitTimer - dt);
+    if (
+      inventory.wood >= 5 &&
+      inventory.stone >= 3
+    ) {
 
-        enemy.attackCooldown =
-            Math.max(0, enemy.attackCooldown - dt);
+      inventory.wood -= 5;
+      inventory.stone -= 3;
 
-        const dx = player.x - enemy.x;
-        const dy = player.y - enemy.y;
+      crafted.campfire++;
 
-        const dist = Math.hypot(dx, dy);
-
-        if (dist < 420) {
-
-            if (dist > 48) {
-
-                const len = Math.max(dist, 1);
-
-                const mx = dx / len;
-                const my = dy / len;
-
-                const speed = enemy.speed;
-
-                const nx =
-                    enemy.x + mx * speed * dt;
-
-                const ny =
-                    enemy.y + my * speed * dt;
-
-                if (!isBlocked(nx, enemy.y, enemy.radius)) {
-                    enemy.x = nx;
-                }
-
-                if (!isBlocked(enemy.x, ny, enemy.radius)) {
-                    enemy.y = ny;
-                }
-            }
-
-            else if (
-                enemy.attackCooldown <= 0
-            ) {
-
-                damagePlayer(10, enemy);
-
-                enemy.attackCooldown = 1.3;
-            }
-
-        } else {
-
-            enemy.wanderTimer -= dt;
-
-            if (enemy.wanderTimer <= 0) {
-
-                enemy.wanderTimer =
-                    random(1.5, 4);
-
-                enemy.dirX =
-                    random(-1, 1);
-
-                enemy.dirY =
-                    random(-1, 1);
-
-                const len = Math.hypot(
-                    enemy.dirX,
-                    enemy.dirY
-                ) || 1;
-
-                enemy.dirX /= len;
-                enemy.dirY /= len;
-            }
-
-            const nx =
-                enemy.x +
-                enemy.dirX *
-                enemy.speed *
-                .35 *
-                dt;
-
-            const ny =
-                enemy.y +
-                enemy.dirY *
-                enemy.speed *
-                .35 *
-                dt;
-
-            if (!isBlocked(nx, enemy.y, enemy.radius)) {
-                enemy.x = nx;
-            }
-
-            if (!isBlocked(enemy.x, ny, enemy.radius)) {
-                enemy.y = ny;
-            }
-        }
+      success = true;
     }
+  }
+
+  if (type === "axe") {
+
+    if (
+      inventory.wood >= 8 &&
+      inventory.stone >= 4
+    ) {
+
+      inventory.wood -= 8;
+      inventory.stone -= 4;
+
+      crafted.axe++;
+
+      success = true;
+    }
+  }
+
+  if (type === "sword") {
+
+    if (
+      inventory.wood >= 5 &&
+      inventory.stone >= 8
+    ) {
+
+      inventory.wood -= 5;
+      inventory.stone -= 8;
+
+      crafted.sword++;
+
+      success = true;
+    }
+  }
+
+  if (type === "potion") {
+
+    if (
+      inventory.mushroom >= 2 &&
+      inventory.wood >= 1
+    ) {
+
+      inventory.mushroom -= 2;
+      inventory.wood -= 1;
+
+      crafted.potion++;
+
+      success = true;
+    }
+  }
+
+  if (success) {
+
+    particle(
+      player.x,
+      player.y,
+      "#e4c978",
+      18
+    );
+
+    showMessage("Item fabricado!");
+
+  } else {
+
+    showMessage("Materiais insuficientes.");
+  }
+
+  updateInventoryUI();
+  updateQuestText();
 }
 
 /* =========================================================
-   PLAYER UPDATE
+   INVENTÁRIO UI
+========================================================= */
+
+const inventoryPanel =
+  document.getElementById("inventoryPanel");
+
+function toggleInventory() {
+
+  if (dialogueOpen) return;
+
+  inventoryPanel.classList.toggle("hidden");
+
+  updateInventoryUI();
+}
+
+document
+  .getElementById("inventoryButton")
+  .addEventListener("click", toggleInventory);
+
+document
+  .getElementById("closeInventory")
+  .addEventListener("click", toggleInventory);
+
+document
+  .querySelectorAll("[data-craft]")
+  .forEach(button => {
+
+    button.addEventListener("click", () => {
+
+      craft(button.dataset.craft);
+    });
+  });
+
+function updateInventoryUI() {
+
+  document.getElementById("woodCount").textContent =
+    inventory.wood;
+
+  document.getElementById("stoneCount").textContent =
+    inventory.stone;
+
+  document.getElementById("mushroomCount").textContent =
+    inventory.mushroom;
+
+  document.getElementById("strangeCount").textContent =
+    inventory.strangeMushroom;
+
+  document.getElementById("campfireCount").textContent =
+    crafted.campfire;
+
+  document.getElementById("axeCount").textContent =
+    crafted.axe;
+
+  document.getElementById("swordCount").textContent =
+    crafted.sword;
+
+  document.getElementById("potionCount").textContent =
+    crafted.potion;
+}
+
+/* =========================================================
+   COMBATE DOS GOBLINS
+========================================================= */
+
+function updateGoblins(dt) {
+
+  goblins.forEach(g => {
+
+    if (g.dead) return;
+
+    if (g.hitTimer > 0) {
+      g.hitTimer -= dt;
+    }
+
+    if (g.attackCooldown > 0) {
+      g.attackCooldown -= dt;
+    }
+
+    const d = distance(player, g);
+
+    if (d < 420) {
+
+      const angle =
+        Math.atan2(
+          player.y - g.y,
+          player.x - g.x
+        );
+
+      if (d > 42) {
+
+        g.x +=
+          Math.cos(angle) *
+          g.speed *
+          dt;
+
+        g.y +=
+          Math.sin(angle) *
+          g.speed *
+          dt;
+
+      } else if (
+        g.attackCooldown <= 0 &&
+        !player.invulnerable
+      ) {
+
+        player.hp -= 8;
+
+        player.hurtTimer = .25;
+
+        player.invulnerable = true;
+
+        setTimeout(() => {
+
+          player.invulnerable = false;
+
+        }, 250);
+
+        camera.shake = 8;
+
+        particle(
+          player.x,
+          player.y,
+          "#d34d4d",
+          12
+        );
+
+        g.attackCooldown = 1.2;
+      }
+
+    } else {
+
+      g.wanderAngle +=
+        random(-.5, .5) * dt;
+
+      g.x +=
+        Math.cos(g.wanderAngle) *
+        g.speed *
+        .25 *
+        dt;
+
+      g.y +=
+        Math.sin(g.wanderAngle) *
+        g.speed *
+        .25 *
+        dt;
+    }
+  });
+}
+
+/* =========================================================
+   PLAYER
 ========================================================= */
 
 function updatePlayer(dt) {
 
-    player.attackCooldown =
-        Math.max(0, player.attackCooldown - dt);
+  if (dialogueOpen) return;
 
-    player.attackTimer =
-        Math.max(0, player.attackTimer - dt);
+  if (!inventoryPanel.classList.contains("hidden")) {
+    return;
+  }
 
-    player.dodgeCooldown =
-        Math.max(0, player.dodgeCooldown - dt);
+  let dx = 0;
+  let dy = 0;
 
-    player.dodgeTimer =
-        Math.max(0, player.dodgeTimer - dt);
+  if (
+    keys["w"] ||
+    keys["arrowup"]
+  ) dy -= 1;
 
-    player.invulnerable =
-        Math.max(0, player.invulnerable - dt);
+  if (
+    keys["s"] ||
+    keys["arrowdown"]
+  ) dy += 1;
 
-    player.hurtTimer =
-        Math.max(0, player.hurtTimer - dt);
+  if (
+    keys["a"] ||
+    keys["arrowleft"]
+  ) dx -= 1;
 
-    if (inventoryOpen) return;
+  if (
+    keys["d"] ||
+    keys["arrowright"]
+  ) dx += 1;
 
-    let dx = 0;
-    let dy = 0;
+  if (joystick.active) {
 
-    if (keys["w"] || keys["arrowup"]) {
-        dy -= 1;
+    dx = joystick.x;
+    dy = joystick.y;
+  }
+
+  const length = Math.hypot(dx, dy);
+
+  if (length > 0) {
+
+    dx /= length;
+    dy /= length;
+
+    player.direction =
+      Math.atan2(dy, dx);
+
+    const speed =
+      player.dodging
+        ? player.speed * 2.8
+        : player.speed;
+
+    player.x += dx * speed * dt;
+    player.y += dy * speed * dt;
+  }
+
+  player.x =
+    Math.max(
+      30,
+      Math.min(world.width - 30, player.x)
+    );
+
+  player.y =
+    Math.max(
+      30,
+      Math.min(world.height - 30, player.y)
+    );
+
+  if (!player.dodging) {
+
+    player.stamina =
+      Math.min(
+        player.maxStamina,
+        player.stamina + 20 * dt
+      );
+  }
+
+  if (player.attackTimer > 0) {
+
+    player.attackTimer -= dt;
+
+    if (player.attackTimer <= 0) {
+      player.attacking = false;
     }
+  }
 
-    if (keys["s"] || keys["arrowdown"]) {
-        dy += 1;
+  if (player.dodgeTimer > 0) {
+
+    player.dodgeTimer -= dt;
+
+    if (player.dodgeTimer <= 0) {
+
+      player.dodging = false;
+      player.invulnerable = false;
     }
+  }
 
-    if (keys["a"] || keys["arrowleft"]) {
-        dx -= 1;
-    }
-
-    if (keys["d"] || keys["arrowright"]) {
-        dx += 1;
-    }
-
-    if (
-        joystick.active ||
-        Math.abs(joystick.x) > .05 ||
-        Math.abs(joystick.y) > .05
-    ) {
-
-        dx = joystick.x;
-        dy = joystick.y;
-    }
-
-    const len = Math.hypot(dx, dy);
-
-    if (len > .01) {
-
-        dx /= len;
-        dy /= len;
-
-        player.dirX = dx;
-        player.dirY = dy;
-
-        let speed = player.speed;
-
-        if (player.dodgeTimer > 0) {
-            speed *= 3.4;
-        }
-
-        const moving = true;
-
-        if (
-            moving &&
-            player.dodgeTimer <= 0
-        ) {
-
-            player.stamina = Math.min(
-                player.maxStamina,
-                player.stamina + 22 * dt
-            );
-        }
-
-        const nx =
-            player.x +
-            dx * speed * dt;
-
-        const ny =
-            player.y +
-            dy * speed * dt;
-
-        if (
-            nx > player.radius &&
-            nx < world.width - player.radius &&
-            !isBlocked(nx, player.y, player.radius)
-        ) {
-            player.x = nx;
-        }
-
-        if (
-            ny > player.radius &&
-            ny < world.height - player.radius &&
-            !isBlocked(player.x, ny, player.radius)
-        ) {
-            player.y = ny;
-        }
-
-    } else {
-
-        player.stamina = Math.min(
-            player.maxStamina,
-            player.stamina + 28 * dt
-        );
-    }
-
-    if (player.dodgeTimer > 0) {
-
-        const nx =
-            player.x +
-            player.dirX *
-            player.speed *
-            3.4 *
-            dt;
-
-        const ny =
-            player.y +
-            player.dirY *
-            player.speed *
-            3.4 *
-            dt;
-
-        if (
-            !isBlocked(nx, player.y, player.radius)
-        ) {
-            player.x = nx;
-        }
-
-        if (
-            !isBlocked(player.x, ny, player.radius)
-        ) {
-            player.y = ny;
-        }
-    }
+  if (player.hurtTimer > 0) {
+    player.hurtTimer -= dt;
+  }
 }
 
 /* =========================================================
-   RESOURCES
-========================================================= */
-
-function updateQuest() {
-
-    if (questStage === 0) {
-
-        document.getElementById("questText").textContent =
-            "Explore a floresta e encontre um cogumelo estranho.";
-    }
-
-    else if (questStage === 1) {
-
-        document.getElementById("questText").textContent =
-            "O cogumelo estranho está reagindo. Volte ao abrigo.";
-    }
-
-    else if (questStage === 2) {
-
-        document.getElementById("questText").textContent =
-            "O abrigo parece esconder algo. Continue explorando.";
-    }
-
-    const nearShelter =
-        Math.hypot(
-            player.x - shelter.x,
-            player.y - shelter.y
-        ) < 170;
-
-    if (
-        nearShelter &&
-        questStage === 1
-    ) {
-
-        questStage = 2;
-
-        showMessage(
-            "O abrigo parece diferente..."
-        );
-    }
-}
-
-/* =========================================================
-   DAY / NIGHT
-========================================================= */
-
-function updateWorldTime(dt) {
-
-    worldTime += dt;
-
-    const cycle = 180;
-
-    const t = (worldTime % cycle) / cycle;
-
-    if (t > .99) {
-        day++;
-    }
-}
-
-function getTimeOfDay() {
-
-    const cycle = 180;
-
-    const t = (worldTime % cycle) / cycle;
-
-    if (t < .25) {
-        return "MANHÃ";
-    }
-
-    if (t < .5) {
-        return "DIA";
-    }
-
-    if (t < .72) {
-        return "ENTARDECER";
-    }
-
-    return "NOITE";
-}
-
-function getNightAmount() {
-
-    const cycle = 180;
-
-    const t = (worldTime % cycle) / cycle;
-
-    if (t < .5) return 0;
-
-    if (t < .72) {
-        return (t - .5) / .22 * .65;
-    }
-
-    if (t < .95) {
-        return .65;
-    }
-
-    return .65 - ((t - .95) / .05) * .65;
-}
-
-/* =========================================================
-   CAMERA
+   CÂMERA
 ========================================================= */
 
 function updateCamera(dt) {
 
-    const smoothing = 1 - Math.pow(.001, dt);
+  camera.x +=
+    (player.x - camera.x) *
+    Math.min(dt * 6, 1);
 
-    camera.x +=
-        (player.x - camera.x) *
-        smoothing;
+  camera.y +=
+    (player.y - camera.y) *
+    Math.min(dt * 6, 1);
 
-    camera.y +=
-        (player.y - camera.y) *
-        smoothing;
-
-    camera.shake =
-        Math.max(0, camera.shake - dt * 18);
+  camera.shake *= .88;
 }
 
 /* =========================================================
-   PARTICLES UPDATE
+   PARTÍCULAS
 ========================================================= */
 
 function updateParticles(dt) {
 
-    for (let i = particles.length - 1; i >= 0; i--) {
+  particles.forEach(p => {
 
-        const p = particles[i];
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
 
-        p.x += p.vx * dt;
-        p.y += p.vy * dt;
+    p.life -= dt;
+  });
 
-        p.vy += 100 * dt;
+  for (
+    let i = particles.length - 1;
+    i >= 0;
+    i--
+  ) {
 
-        p.life -= dt;
+    if (particles[i].life <= 0) {
 
-        if (p.life <= 0) {
-            particles.splice(i, 1);
-        }
+      particles.splice(i, 1);
     }
+  }
 }
 
 /* =========================================================
-   MESSAGE
+   MUNDO / DESENHO
 ========================================================= */
-
-function showMessage(text) {
-
-    messageText = text;
-    messageTimer = 2.5;
-
-    const element =
-        document.getElementById("interaction");
-
-    element.textContent = text;
-    element.classList.add("show");
-}
-
-function updateMessage(dt) {
-
-    if (messageTimer > 0) {
-
-        messageTimer -= dt;
-
-        if (messageTimer <= 0) {
-
-            document
-                .getElementById("interaction")
-                .classList.remove("show");
-        }
-    }
-}
-
-/* =========================================================
-   HUD
-========================================================= */
-
-function updateHUD() {
-
-    const hp =
-        Math.max(
-            0,
-            player.hp / player.maxHp * 100
-        );
-
-    const stamina =
-        Math.max(
-            0,
-            player.stamina /
-            player.maxStamina * 100
-        );
-
-    document.getElementById("hpBar")
-        .style.width = hp + "%";
-
-    document.getElementById("staminaBar")
-        .style.width = stamina + "%";
-
-    document.getElementById("hpText")
-        .textContent =
-        `${Math.ceil(player.hp)} / ${player.maxHp}`;
-
-    document.getElementById("staminaText")
-        .textContent =
-        `${Math.ceil(player.stamina)} / ${player.maxStamina}`;
-
-    document.getElementById("dayText")
-        .textContent =
-        `DIA ${day} • ${getTimeOfDay()}`;
-
-    document.getElementById("resourceText")
-        .textContent =
-        `🪵 ${resources.wood}   🪨 ${resources.stone}   🍄 ${resources.mushroom}`;
-}
-
-/* =========================================================
-   WORLD DRAWING
-========================================================= */
-
-function worldToScreen(x, y) {
-
-    return {
-        x: x - camera.x + W / 2,
-        y: y - camera.y + H / 2
-    };
-}
 
 function drawGround() {
 
-    const tile = 64;
+  ctx.fillStyle = "#182019";
 
-    const startX =
-        Math.floor(
-            (camera.x - W / 2) / tile
-        ) * tile;
+  ctx.fillRect(
+    0,
+    0,
+    world.width,
+    world.height
+  );
 
-    const startY =
-        Math.floor(
-            (camera.y - H / 2) / tile
-        ) * tile;
+  /* grama */
 
-    for (
-        let x = startX;
-        x < camera.x + W / 2 + tile;
-        x += tile
-    ) {
+  ctx.strokeStyle = "rgba(92,110,78,.12)";
+  ctx.lineWidth = 1;
 
-        for (
-            let y = startY;
-            y < camera.y + H / 2 + tile;
-            y += tile
-        ) {
+  for (let x = 0; x < world.width; x += 80) {
 
-            const screen =
-                worldToScreen(x, y);
+    for (let y = 0; y < world.height; y += 80) {
 
-            const variation =
-                ((x / tile + y / tile) % 3);
+      ctx.beginPath();
 
-            if (variation === 0) {
-                ctx.fillStyle = "#252b20";
-            }
+      ctx.moveTo(x, y);
 
-            else if (variation === 1) {
-                ctx.fillStyle = "#283022";
-            }
+      ctx.lineTo(
+        x + 4,
+        y - 7
+      );
 
-            else {
-                ctx.fillStyle = "#22291e";
-            }
-
-            ctx.fillRect(
-                screen.x,
-                screen.y,
-                tile + 1,
-                tile + 1
-            );
-
-            ctx.fillStyle =
-                "rgba(20,25,18,.25)";
-
-            ctx.fillRect(
-                screen.x + 5,
-                screen.y + 12,
-                2,
-                2
-            );
-        }
+      ctx.stroke();
     }
+  }
 }
-
-/* =========================================================
-   TREES
-========================================================= */
 
 function drawTrees() {
 
-    for (const tree of trees) {
+  trees.forEach(t => {
 
-        const s =
-            worldToScreen(tree.x, tree.y);
-
-        if (
-            s.x < -80 ||
-            s.x > W + 80 ||
-            s.y < -100 ||
-            s.y > H + 100
-        ) continue;
-
-        ctx.save();
-
-        ctx.translate(s.x, s.y);
-
-        ctx.fillStyle =
-            "rgba(0,0,0,.3)";
-
-        ctx.beginPath();
-        ctx.ellipse(
-            0,
-            16,
-            tree.radius * 1.3,
-            tree.radius * .55,
-            0,
-            0,
-            Math.PI * 2
-        );
-        ctx.fill();
-
-        ctx.fillStyle = "#3c2920";
-
-        ctx.fillRect(
-            -7,
-            -5,
-            14,
-            30
-        );
-
-        ctx.fillStyle = "#182619";
-
-        ctx.beginPath();
-        ctx.arc(
-            -12,
-            -18,
-            tree.radius * .7,
-            0,
-            Math.PI * 2
-        );
-        ctx.fill();
-
-        ctx.fillStyle = "#21351f";
-
-        ctx.beginPath();
-        ctx.arc(
-            12,
-            -22,
-            tree.radius * .75,
-            0,
-            Math.PI * 2
-        );
-        ctx.fill();
-
-        ctx.fillStyle = "#294126";
-
-        ctx.beginPath();
-        ctx.arc(
-            0,
-            -38,
-            tree.radius * .65,
-            0,
-            Math.PI * 2
-        );
-        ctx.fill();
-
-        ctx.restore();
-    }
-}
-
-/* =========================================================
-   ROCKS
-========================================================= */
-
-function drawRocks() {
-
-    for (const rock of rocks) {
-
-        const s =
-            worldToScreen(
-                rock.x,
-                rock.y
-            );
-
-        if (
-            s.x < -60 ||
-            s.x > W + 60 ||
-            s.y < -60 ||
-            s.y > H + 60
-        ) continue;
-
-        ctx.save();
-
-        ctx.translate(s.x, s.y);
-
-        ctx.fillStyle =
-            "rgba(0,0,0,.3)";
-
-        ctx.beginPath();
-        ctx.ellipse(
-            0,
-            7,
-            rock.radius * 1.15,
-            rock.radius * .55,
-            0,
-            0,
-            Math.PI * 2
-        );
-        ctx.fill();
-
-        ctx.fillStyle = "#51564e";
-
-        ctx.beginPath();
-        ctx.moveTo(-rock.radius, 5);
-        ctx.lineTo(-rock.radius * .6, -rock.radius);
-        ctx.lineTo(rock.radius * .4, -rock.radius * .85);
-        ctx.lineTo(rock.radius, 2);
-        ctx.lineTo(rock.radius * .4, rock.radius);
-        ctx.lineTo(-rock.radius * .7, rock.radius * .7);
-        ctx.closePath();
-        ctx.fill();
-
-        ctx.fillStyle = "#777b70";
-
-        ctx.beginPath();
-        ctx.moveTo(
-            -rock.radius * .5,
-            -rock.radius * .55
-        );
-
-        ctx.lineTo(
-            rock.radius * .25,
-            -rock.radius * .7
-        );
-
-        ctx.lineTo(
-            rock.radius * .55,
-            -rock.radius * .1
-        );
-
-        ctx.lineTo(
-            -rock.radius * .1,
-            -rock.radius * .25
-        );
-
-        ctx.closePath();
-
-        ctx.fill();
-
-        ctx.restore();
-    }
-}
-
-/* =========================================================
-   MUSHROOMS
-========================================================= */
-
-function drawMushrooms() {
-
-    for (const mushroom of mushrooms) {
-
-        if (mushroom.collected) continue;
-
-        const s =
-            worldToScreen(
-                mushroom.x,
-                mushroom.y
-            );
-
-        ctx.save();
-
-        ctx.translate(s.x, s.y);
-
-        ctx.fillStyle = "#d4c4a0";
-
-        ctx.fillRect(
-            -3,
-            0,
-            6,
-            11
-        );
-
-        ctx.fillStyle =
-            mushroom.strange
-                ? "#773e80"
-                : "#8d3939";
-
-        ctx.beginPath();
-
-        ctx.arc(
-            0,
-            0,
-            10,
-            Math.PI,
-            0
-        );
-
-        ctx.fill();
-
-        if (mushroom.strange) {
-
-            ctx.fillStyle = "#d5a6e0";
-
-            ctx.beginPath();
-
-            ctx.arc(
-                -3,
-                -3,
-                2,
-                0,
-                Math.PI * 2
-            );
-
-            ctx.arc(
-                4,
-                -5,
-                2,
-                0,
-                Math.PI * 2
-            );
-
-            ctx.fill();
-        }
-
-        ctx.restore();
-    }
-}
-
-/* =========================================================
-   RESOURCE OBJECTS
-========================================================= */
-
-function drawResources() {
-
-    for (const wood of woods) {
-
-        if (wood.collected) continue;
-
-        const s =
-            worldToScreen(
-                wood.x,
-                wood.y
-            );
-
-        ctx.save();
-
-        ctx.translate(s.x, s.y);
-
-        ctx.rotate(-.2);
-
-        ctx.fillStyle = "#6e4429";
-
-        ctx.fillRect(
-            -10,
-            -4,
-            20,
-            8
-        );
-
-        ctx.fillStyle = "#9c6c40";
-
-        ctx.fillRect(
-            -8,
-            -2,
-            16,
-            3
-        );
-
-        ctx.restore();
-    }
-
-    for (const stone of stones) {
-
-        if (stone.collected) continue;
-
-        const s =
-            worldToScreen(
-                stone.x,
-                stone.y
-            );
-
-        ctx.save();
-
-        ctx.translate(s.x, s.y);
-
-        ctx.fillStyle = "#6e746d";
-
-        ctx.beginPath();
-
-        ctx.moveTo(-8, 4);
-        ctx.lineTo(-5, -6);
-        ctx.lineTo(4, -8);
-        ctx.lineTo(9, 1);
-        ctx.lineTo(3, 8);
-        ctx.lineTo(-6, 7);
-
-        ctx.closePath();
-
-        ctx.fill();
-
-        ctx.restore();
-    }
-}
-
-/* =========================================================
-   SHELTER
-========================================================= */
-
-function drawShelter() {
-
-    const s =
-        worldToScreen(
-            shelter.x,
-            shelter.y
-        );
-
-    ctx.save();
-
-    ctx.translate(s.x, s.y);
+    /* sombra */
 
     ctx.fillStyle =
-        "rgba(0,0,0,.35)";
+      "rgba(0,0,0,.25)";
+
+    ctx.beginPath();
+
+    ctx.ellipse(
+      t.x,
+      t.y + t.size * .55,
+      t.size * .8,
+      t.size * .35,
+      0,
+      0,
+      Math.PI * 2
+    );
+
+    ctx.fill();
+
+    /* tronco */
+
+    ctx.fillStyle = "#4d3827";
 
     ctx.fillRect(
-        -shelter.width / 2 + 10,
-        -shelter.height / 2 + 15,
-        shelter.width,
-        shelter.height
+      t.x - t.size * .18,
+      t.y,
+      t.size * .36,
+      t.size * .75
     );
 
-    ctx.fillStyle = "#453528";
+    /* copa */
 
-    ctx.fillRect(
-        -shelter.width / 2,
-        -shelter.height / 2,
-        shelter.width,
-        shelter.height
-    );
-
-    ctx.fillStyle = "#2d241e";
-
-    ctx.fillRect(
-        -shelter.width / 2 + 10,
-        -shelter.height / 2 + 10,
-        shelter.width - 20,
-        shelter.height - 20
-    );
-
-    ctx.fillStyle = "#624731";
-
-    ctx.fillRect(
-        -100,
-        -50,
-        200,
-        90
-    );
-
-    ctx.fillStyle = "#211c17";
-
-    ctx.fillRect(
-        -30,
-        0,
-        60,
-        40
-    );
-
-    ctx.fillStyle = "#9a7849";
-
-    ctx.fillRect(
-        -5,
-        20,
-        10,
-        10
-    );
-
-    ctx.fillStyle = "#837050";
-
-    ctx.font = "12px Arial";
-
-    ctx.textAlign = "center";
-
-    ctx.fillText(
-        "ABRIGO",
-        0,
-        -72
-    );
-
-    ctx.restore();
-}
-
-/* =========================================================
-   CAMPFIRE
-========================================================= */
-
-function drawCampfire() {
-
-    const s =
-        worldToScreen(
-            campfire.x,
-            campfire.y
-        );
-
-    const glow =
-        ctx.createRadialGradient(
-            s.x,
-            s.y,
-            5,
-            s.x,
-            s.y,
-            130
-        );
-
-    glow.addColorStop(
-        0,
-        "rgba(255,170,50,.28)"
-    );
-
-    glow.addColorStop(
-        1,
-        "rgba(255,100,20,0)"
-    );
-
-    ctx.fillStyle = glow;
+    ctx.fillStyle = "#213b28";
 
     ctx.beginPath();
 
     ctx.arc(
-        s.x,
-        s.y,
-        130,
+      t.x,
+      t.y,
+      t.size * .7,
+      0,
+      Math.PI * 2
+    );
+
+    ctx.fill();
+
+    ctx.fillStyle = "#294c31";
+
+    ctx.beginPath();
+
+    ctx.arc(
+      t.x - t.size * .22,
+      t.y - t.size * .15,
+      t.size * .38,
+      0,
+      Math.PI * 2
+    );
+
+    ctx.fill();
+  });
+}
+
+function drawRocks() {
+
+  rocks.forEach(r => {
+
+    ctx.fillStyle =
+      "rgba(0,0,0,.25)";
+
+    ctx.beginPath();
+
+    ctx.ellipse(
+      r.x,
+      r.y + 5,
+      r.size,
+      r.size * .45,
+      0,
+      0,
+      Math.PI * 2
+    );
+
+    ctx.fill();
+
+    ctx.fillStyle = "#59605b";
+
+    ctx.beginPath();
+
+    ctx.arc(
+      r.x,
+      r.y,
+      r.size,
+      0,
+      Math.PI * 2
+    );
+
+    ctx.fill();
+  });
+}
+
+function drawMushrooms() {
+
+  mushrooms.forEach(m => {
+
+    if (m.collected) return;
+
+    ctx.fillStyle = "#e2d3ba";
+
+    ctx.fillRect(
+      m.x - 2,
+      m.y,
+      4,
+      12
+    );
+
+    ctx.fillStyle =
+      m.strange
+        ? "#8d4bd3"
+        : "#c55362";
+
+    ctx.beginPath();
+
+    ctx.arc(
+      m.x,
+      m.y,
+      10,
+      Math.PI,
+      0
+    );
+
+    ctx.fill();
+
+    if (m.strange) {
+
+      ctx.fillStyle = "#e9caff";
+
+      ctx.beginPath();
+
+      ctx.arc(
+        m.x - 3,
+        m.y - 4,
+        2,
         0,
         Math.PI * 2
-    );
+      );
 
-    ctx.fill();
-
-    ctx.save();
-
-    ctx.translate(
-        s.x,
-        s.y
-    );
-
-    ctx.fillStyle = "#5d3925";
-
-    ctx.fillRect(
-        -20,
-        -4,
-        40,
-        8
-    );
-
-    ctx.rotate(.8);
-
-    ctx.fillRect(
-        -20,
-        -4,
-        40,
-        8
-    );
-
-    ctx.rotate(-.4);
-
-    ctx.fillStyle = "#e47a22";
-
-    ctx.beginPath();
-
-    ctx.moveTo(0, -35);
-    ctx.lineTo(-17, 5);
-    ctx.lineTo(0, -3);
-    ctx.lineTo(15, 5);
-
-    ctx.closePath();
-
-    ctx.fill();
-
-    ctx.fillStyle = "#ffd36b";
-
-    ctx.beginPath();
-
-    ctx.moveTo(0, -24);
-    ctx.lineTo(-9, 4);
-    ctx.lineTo(0, -2);
-    ctx.lineTo(8, 4);
-
-    ctx.closePath();
-
-    ctx.fill();
-
-    ctx.restore();
+      ctx.fill();
+    }
+  });
 }
 
 /* =========================================================
-   ENEMIES
+   ABRIGO
 ========================================================= */
 
-function drawEnemies() {
+function drawShelter() {
 
-    for (const enemy of enemies) {
+  /* sombra */
 
-        if (enemy.hp <= 0) continue;
+  ctx.fillStyle =
+    "rgba(0,0,0,.3)";
 
-        const s =
-            worldToScreen(
-                enemy.x,
-                enemy.y
-            );
+  ctx.fillRect(
+    shelter.x - shelter.width / 2 + 8,
+    shelter.y - shelter.height / 2 + 10,
+    shelter.width,
+    shelter.height
+  );
 
-        ctx.save();
+  /* madeira */
 
-        ctx.translate(
-            s.x,
-            s.y
-        );
+  ctx.fillStyle = "#61442d";
 
-        if (enemy.hitTimer > 0) {
-            ctx.globalAlpha = .65;
-        }
+  ctx.fillRect(
+    shelter.x - shelter.width / 2,
+    shelter.y - shelter.height / 2,
+    shelter.width,
+    shelter.height
+  );
 
-        ctx.fillStyle =
-            "rgba(0,0,0,.35)";
+  /* teto */
 
-        ctx.beginPath();
+  ctx.fillStyle = "#382a21";
 
-        ctx.ellipse(
-            0,
-            15,
-            18,
-            7,
-            0,
-            0,
-            Math.PI * 2
-        );
+  ctx.beginPath();
 
-        ctx.fill();
+  ctx.moveTo(
+    shelter.x - shelter.width / 2 - 15,
+    shelter.y - shelter.height / 2
+  );
 
-        ctx.fillStyle = "#53623e";
+  ctx.lineTo(
+    shelter.x,
+    shelter.y - shelter.height / 2 - 70
+  );
 
-        ctx.beginPath();
+  ctx.lineTo(
+    shelter.x + shelter.width / 2 + 15,
+    shelter.y - shelter.height / 2
+  );
 
-        ctx.arc(
-            0,
-            0,
-            17,
-            0,
-            Math.PI * 2
-        );
+  ctx.closePath();
 
-        ctx.fill();
+  ctx.fill();
 
-        ctx.fillStyle = "#333c28";
+  /* porta */
 
-        ctx.fillRect(
-            -12,
-            -14,
-            24,
-            8
-        );
+  ctx.fillStyle = "#17130f";
 
-        ctx.fillStyle = "#d3c69a";
+  ctx.fillRect(
+    shelter.x - 18,
+    shelter.y + 5,
+    36,
+    70
+  );
 
-        ctx.beginPath();
+  /* placa */
 
-        ctx.moveTo(-10, -11);
-        ctx.lineTo(-19, -20);
-        ctx.lineTo(-8, -16);
+  ctx.fillStyle = "#bda76a";
 
-        ctx.closePath();
+  ctx.font = "bold 14px Arial";
 
-        ctx.fill();
+  ctx.textAlign = "center";
 
-        ctx.beginPath();
+  ctx.fillText(
+    "ABRIGO",
+    shelter.x,
+    shelter.y - shelter.height / 2 - 82
+  );
+}
 
-        ctx.moveTo(10, -11);
-        ctx.lineTo(19, -20);
-        ctx.lineTo(8, -16);
+/* =========================================================
+   FOGUEIRA
+========================================================= */
 
-        ctx.closePath();
+function drawCampfire() {
 
-        ctx.fill();
+  ctx.fillStyle =
+    "rgba(255,120,40,.13)";
 
-        ctx.fillStyle = "#d95b49";
+  ctx.beginPath();
 
-        ctx.fillRect(
-            -7,
-            -2,
-            4,
-            4
-        );
+  ctx.arc(
+    campfire.x,
+    campfire.y,
+    110,
+    0,
+    Math.PI * 2
+  );
 
-        ctx.fillRect(
-            3,
-            -2,
-            4,
-            4
-        );
+  ctx.fill();
 
-        ctx.fillStyle = "#181913";
+  ctx.fillStyle = "#4d3323";
 
-        ctx.fillRect(
-            -8,
-            7,
-            16,
-            4
-        );
+  ctx.fillRect(
+    campfire.x - 22,
+    campfire.y - 4,
+    44,
+    8
+  );
 
-        ctx.restore();
+  ctx.fillRect(
+    campfire.x - 22,
+    campfire.y + 4,
+    44,
+    8
+  );
 
-        /* barra de vida */
+  ctx.fillStyle = "#ff9a35";
 
-        const hpWidth = 34;
+  ctx.beginPath();
 
-        ctx.fillStyle =
-            "rgba(0,0,0,.6)";
+  ctx.arc(
+    campfire.x,
+    campfire.y - 10,
+    18,
+    0,
+    Math.PI * 2
+  );
 
-        ctx.fillRect(
-            s.x - hpWidth / 2,
-            s.y - 31,
-            hpWidth,
-            4
-        );
+  ctx.fill();
 
-        ctx.fillStyle = "#8d3030";
+  ctx.fillStyle = "#ffd36a";
 
-        ctx.fillRect(
-            s.x - hpWidth / 2,
-            s.y - 31,
-            hpWidth *
-            Math.max(
-                0,
-                enemy.hp / enemy.maxHp
-            ),
-            4
-        );
+  ctx.beginPath();
+
+  ctx.arc(
+    campfire.x,
+    campfire.y - 13,
+    9,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+}
+
+/* =========================================================
+   ANCIÃO
+========================================================= */
+
+function drawElder() {
+
+  const pulse =
+    Math.sin(performance.now() / 400) * 2;
+
+  /* sombra */
+
+  ctx.fillStyle =
+    "rgba(0,0,0,.3)";
+
+  ctx.beginPath();
+
+  ctx.ellipse(
+    elder.x,
+    elder.y + 25,
+    25,
+    10,
+    0,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+  /* manto */
+
+  ctx.fillStyle = "#554b3d";
+
+  ctx.beginPath();
+
+  ctx.moveTo(
+    elder.x - 20,
+    elder.y + 25
+  );
+
+  ctx.lineTo(
+    elder.x - 25,
+    elder.y - 5
+  );
+
+  ctx.lineTo(
+    elder.x,
+    elder.y - 22
+  );
+
+  ctx.lineTo(
+    elder.x + 25,
+    elder.y - 5
+  );
+
+  ctx.lineTo(
+    elder.x + 20,
+    elder.y + 25
+  );
+
+  ctx.closePath();
+
+  ctx.fill();
+
+  /* cabeça */
+
+  ctx.fillStyle = "#b58b70";
+
+  ctx.beginPath();
+
+  ctx.arc(
+    elder.x,
+    elder.y - 25,
+    13,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+  /* cabelo/barba */
+
+  ctx.fillStyle = "#d2d0c2";
+
+  ctx.beginPath();
+
+  ctx.arc(
+    elder.x,
+    elder.y - 29,
+    12,
+    Math.PI,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+  ctx.fillRect(
+    elder.x - 8,
+    elder.y - 21,
+    16,
+    13
+  );
+
+  /* cajado */
+
+  ctx.strokeStyle = "#7b5637";
+
+  ctx.lineWidth = 5;
+
+  ctx.beginPath();
+
+  ctx.moveTo(
+    elder.x + 20,
+    elder.y + 27
+  );
+
+  ctx.lineTo(
+    elder.x + 28,
+    elder.y - 30
+  );
+
+  ctx.stroke();
+
+  /* marcador */
+
+  if (
+    distance(player, elder) < 120
+  ) {
+
+    ctx.fillStyle = "#e3c86e";
+
+    ctx.beginPath();
+
+    ctx.arc(
+      elder.x,
+      elder.y - 65 + pulse,
+      5,
+      0,
+      Math.PI * 2
+    );
+
+    ctx.fill();
+  }
+
+  ctx.font = "bold 12px Arial";
+
+  ctx.textAlign = "center";
+
+  ctx.fillStyle = "#e2d4aa";
+
+  ctx.fillText(
+    "Ancião",
+    elder.x,
+    elder.y - 78
+  );
+}
+
+/* =========================================================
+   GOBLINS
+========================================================= */
+
+function drawGoblins() {
+
+  goblins.forEach(g => {
+
+    if (g.dead) return;
+
+    /* sombra */
+
+    ctx.fillStyle =
+      "rgba(0,0,0,.3)";
+
+    ctx.beginPath();
+
+    ctx.ellipse(
+      g.x,
+      g.y + 18,
+      18,
+      7,
+      0,
+      0,
+      Math.PI * 2
+    );
+
+    ctx.fill();
+
+    /* corpo */
+
+    ctx.fillStyle =
+      g.hitTimer > 0
+        ? "#f2caca"
+        : "#5b7048";
+
+    ctx.beginPath();
+
+    ctx.arc(
+      g.x,
+      g.y,
+      g.radius,
+      0,
+      Math.PI * 2
+    );
+
+    ctx.fill();
+
+    /* orelhas */
+
+    ctx.fillStyle = "#718a57";
+
+    ctx.beginPath();
+
+    ctx.moveTo(
+      g.x - 12,
+      g.y - 5
+    );
+
+    ctx.lineTo(
+      g.x - 28,
+      g.y - 13
+    );
+
+    ctx.lineTo(
+      g.x - 15,
+      g.y + 7
+    );
+
+    ctx.fill();
+
+    ctx.beginPath();
+
+    ctx.moveTo(
+      g.x + 12,
+      g.y - 5
+    );
+
+    ctx.lineTo(
+      g.x + 28,
+      g.y - 13
+    );
+
+    ctx.lineTo(
+      g.x + 15,
+      g.y + 7
+    );
+
+    ctx.fill();
+
+    /* olhos */
+
+    ctx.fillStyle = "#e8d76b";
+
+    ctx.fillRect(
+      g.x - 7,
+      g.y - 4,
+      4,
+      4
+    );
+
+    ctx.fillRect(
+      g.x + 3,
+      g.y - 4,
+      4,
+      4
+    );
+
+    /* barra de vida */
+
+    if (g.hp < g.maxHp) {
+
+      ctx.fillStyle = "rgba(0,0,0,.6)";
+
+      ctx.fillRect(
+        g.x - 20,
+        g.y - 30,
+        40,
+        5
+      );
+
+      ctx.fillStyle = "#c94d4d";
+
+      ctx.fillRect(
+        g.x - 20,
+        g.y - 30,
+        40 * (g.hp / g.maxHp),
+        5
+      );
     }
+  });
 }
 
 /* =========================================================
@@ -2154,514 +1967,447 @@ function drawEnemies() {
 
 function drawPlayer() {
 
-    const s =
-        worldToScreen(
-            player.x,
-            player.y
-        );
+  /* sombra */
+
+  ctx.fillStyle =
+    "rgba(0,0,0,.3)";
+
+  ctx.beginPath();
+
+  ctx.ellipse(
+    player.x,
+    player.y + 20,
+    20,
+    8,
+    0,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+  /* corpo */
+
+  ctx.fillStyle =
+    player.dodging
+      ? "#a7b9bd"
+      : "#354f58";
+
+  ctx.beginPath();
+
+  ctx.arc(
+    player.x,
+    player.y,
+    player.radius,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+  /* capa */
+
+  ctx.fillStyle = "#202c31";
+
+  ctx.beginPath();
+
+  ctx.moveTo(
+    player.x - 13,
+    player.y + 6
+  );
+
+  ctx.lineTo(
+    player.x,
+    player.y + 26
+  );
+
+  ctx.lineTo(
+    player.x + 13,
+    player.y + 6
+  );
+
+  ctx.closePath();
+
+  ctx.fill();
+
+  /* cabeça */
+
+  ctx.fillStyle = "#b88970";
+
+  ctx.beginPath();
+
+  ctx.arc(
+    player.x,
+    player.y - 15,
+    10,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.fill();
+
+  /* espada */
+
+  if (
+    player.attacking ||
+    crafted.sword > 0
+  ) {
 
     ctx.save();
 
     ctx.translate(
-        s.x,
-        s.y
+      player.x,
+      player.y
     );
 
-    if (
-        player.invulnerable > 0 &&
-        Math.floor(
-            player.invulnerable * 20
-        ) % 2 === 0
-    ) {
-        ctx.globalAlpha = .45;
-    }
+    ctx.rotate(
+      player.attacking
+        ? player.direction + .5
+        : player.direction
+    );
 
-    ctx.fillStyle =
-        "rgba(0,0,0,.4)";
+    ctx.strokeStyle = "#d8dce0";
+
+    ctx.lineWidth = 4;
 
     ctx.beginPath();
 
-    ctx.ellipse(
-        0,
-        15,
-        17,
-        7,
-        0,
-        0,
-        Math.PI * 2
-    );
+    ctx.moveTo(12, 0);
+    ctx.lineTo(48, 0);
 
-    ctx.fill();
-
-    ctx.fillStyle = "#20252a";
-
-    ctx.fillRect(
-        -9,
-        0,
-        18,
-        20
-    );
-
-    ctx.fillStyle = "#b58d70";
-
-    ctx.beginPath();
-
-    ctx.arc(
-        0,
-        -9,
-        10,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-
-    ctx.fillStyle = "#17191c";
-
-    ctx.beginPath();
-
-    ctx.arc(
-        0,
-        -12,
-        11,
-        Math.PI,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-
-    ctx.fillStyle = "#c5a27b";
-
-    ctx.fillRect(
-        -13,
-        2,
-        6,
-        13
-    );
-
-    ctx.fillRect(
-        7,
-        2,
-        6,
-        13
-    );
-
-    if (player.attackTimer > 0) {
-
-        ctx.save();
-
-        ctx.rotate(
-            Math.atan2(
-                player.dirY,
-                player.dirX
-            )
-        );
-
-        ctx.strokeStyle = "#d8d7c7";
-        ctx.lineWidth = 5;
-        ctx.lineCap = "round";
-
-        ctx.beginPath();
-
-        ctx.moveTo(
-            8,
-            -2
-        );
-
-        ctx.lineTo(
-            48,
-            -17
-        );
-
-        ctx.stroke();
-
-        ctx.strokeStyle = "#8b6944";
-        ctx.lineWidth = 4;
-
-        ctx.beginPath();
-
-        ctx.moveTo(
-            7,
-            -1
-        );
-
-        ctx.lineTo(
-            22,
-            -1
-        );
-
-        ctx.stroke();
-
-        ctx.restore();
-    }
+    ctx.stroke();
 
     ctx.restore();
+  }
 }
 
 /* =========================================================
-   PARTICLES DRAW
+   PARTÍCULAS DRAW
 ========================================================= */
 
 function drawParticles() {
 
-    for (const p of particles) {
+  particles.forEach(p => {
 
-        const s =
-            worldToScreen(
-                p.x,
-                p.y
-            );
+    ctx.globalAlpha =
+      Math.max(0, p.life / p.maxLife);
 
-        ctx.globalAlpha =
-            Math.max(
-                0,
-                p.life / p.maxLife
-            );
+    ctx.fillStyle = p.color;
 
-        if (p.type === "hit") {
-            ctx.fillStyle = "#d5b29a";
-        }
+    ctx.fillRect(
+      p.x - 2,
+      p.y - 2,
+      4,
+      4
+    );
+  });
 
-        else if (p.type === "death") {
-            ctx.fillStyle = "#71835a";
-        }
+  ctx.globalAlpha = 1;
+}
 
-        else if (p.type === "dodge") {
-            ctx.fillStyle = "#b9b39b";
-        }
+/* =========================================================
+   ILUMINAÇÃO
+========================================================= */
 
-        else if (p.type === "craft") {
-            ctx.fillStyle = "#d6bd70";
-        }
+function drawLighting() {
 
-        else {
-            ctx.fillStyle = "#c7b77a";
-        }
+  const gradient =
+    ctx.createRadialGradient(
+      player.x,
+      player.y,
+      80,
+      player.x,
+      player.y,
+      550
+    );
 
-        ctx.beginPath();
+  gradient.addColorStop(
+    0,
+    "rgba(0,0,0,0)"
+  );
 
-        ctx.arc(
-            s.x,
-            s.y,
-            p.size,
-            0,
-            Math.PI * 2
-        );
+  gradient.addColorStop(
+    1,
+    "rgba(0,0,0,.48)"
+  );
 
-        ctx.fill();
+  ctx.fillStyle = gradient;
 
-        ctx.globalAlpha = 1;
+  ctx.fillRect(
+    camera.x - W / 2 - 100,
+    camera.y - H / 2 - 100,
+    W + 200,
+    H + 200
+  );
+}
+
+/* =========================================================
+   DIA / NOITE
+========================================================= */
+
+let worldTime = 0;
+
+const dayLength = 180;
+
+function updateWorldTime(dt) {
+
+  worldTime += dt;
+
+  if (worldTime > dayLength) {
+    worldTime = 0;
+  }
+}
+
+function drawNight() {
+
+  const progress =
+    worldTime / dayLength;
+
+  const darkness =
+    Math.max(
+      0,
+      Math.sin(
+        progress * Math.PI * 2
+      ) * .5 + .1
+    );
+
+  if (darkness <= 0) return;
+
+  ctx.fillStyle =
+    `rgba(7,12,25,${darkness * .45})`;
+
+  ctx.fillRect(
+    camera.x - W / 2,
+    camera.y - H / 2,
+    W,
+    H
+  );
+}
+
+/* =========================================================
+   INTERAÇÃO HUD
+========================================================= */
+
+const interactionHint =
+  document.getElementById("interactionHint");
+
+function updateInteractionHint() {
+
+  if (dialogueOpen) {
+
+    interactionHint.classList.remove("show");
+
+    return;
+  }
+
+  const target =
+    nearestInteractable();
+
+  if (target === elder) {
+
+    interactionHint.textContent =
+      "E — Falar com o Ancião";
+
+    interactionHint.classList.add("show");
+
+  } else {
+
+    interactionHint.classList.remove("show");
+  }
+}
+
+/* =========================================================
+   MOBILE BUTTONS
+========================================================= */
+
+document
+  .getElementById("attackButton")
+  .addEventListener("pointerdown", e => {
+
+    e.preventDefault();
+
+    if (dialogueOpen) return;
+
+    attack();
+  });
+
+document
+  .getElementById("dodgeButton")
+  .addEventListener("pointerdown", e => {
+
+    e.preventDefault();
+
+    if (dialogueOpen) return;
+
+    dodge();
+  });
+
+document
+  .getElementById("interactButton")
+  .addEventListener("pointerdown", e => {
+
+    e.preventDefault();
+
+    if (dialogueOpen) {
+
+      advanceDialogue();
+
+    } else {
+
+      interact();
     }
-}
+  });
+
+dialogueContinue.addEventListener(
+  "click",
+  advanceDialogue
+);
 
 /* =========================================================
-   NIGHT
+   MENSAGEM
 ========================================================= */
 
-function drawNightOverlay() {
+let messageTimer = null;
 
-    const amount = getNightAmount();
+function showMessage(text) {
 
-    if (amount <= 0) return;
+  const message =
+    document.getElementById("message");
 
-    ctx.fillStyle =
-        `rgba(5,8,18,${amount})`;
+  message.textContent = text;
 
-    ctx.fillRect(
-        0,
-        0,
-        W,
-        H
-    );
+  message.classList.add("show");
 
-    /* luz do jogador */
+  clearTimeout(messageTimer);
 
-    const ps =
-        worldToScreen(
-            player.x,
-            player.y
-        );
+  messageTimer = setTimeout(() => {
 
-    const light =
-        ctx.createRadialGradient(
-            ps.x,
-            ps.y,
-            20,
-            ps.x,
-            ps.y,
-            250
-        );
+    message.classList.remove("show");
 
-    light.addColorStop(
-        0,
-        `rgba(0,0,0,${amount})`
-    );
-
-    light.addColorStop(
-        .35,
-        `rgba(0,0,0,${amount * .55})`
-    );
-
-    light.addColorStop(
-        1,
-        "rgba(0,0,0,0)"
-    );
-
-    ctx.globalCompositeOperation =
-        "destination-out";
-
-    ctx.fillStyle = light;
-
-    ctx.beginPath();
-
-    ctx.arc(
-        ps.x,
-        ps.y,
-        250,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-
-    ctx.globalCompositeOperation =
-        "source-over";
-
-    /* luz da fogueira */
-
-    const fire =
-        worldToScreen(
-            campfire.x,
-            campfire.y
-        );
-
-    const fireLight =
-        ctx.createRadialGradient(
-            fire.x,
-            fire.y,
-            10,
-            fire.x,
-            fire.y,
-            170
-        );
-
-    fireLight.addColorStop(
-        0,
-        `rgba(0,0,0,${amount})`
-    );
-
-    fireLight.addColorStop(
-        .4,
-        `rgba(0,0,0,${amount * .55})`
-    );
-
-    fireLight.addColorStop(
-        1,
-        "rgba(0,0,0,0)"
-    );
-
-    ctx.globalCompositeOperation =
-        "destination-out";
-
-    ctx.fillStyle = fireLight;
-
-    ctx.beginPath();
-
-    ctx.arc(
-        fire.x,
-        fire.y,
-        170,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-
-    ctx.globalCompositeOperation =
-        "source-over";
+  }, 2200);
 }
 
 /* =========================================================
-   VIGNETTE
+   HUD
 ========================================================= */
 
-function drawVignette() {
+function updateHUD() {
 
-    const gradient =
-        ctx.createRadialGradient(
-            W / 2,
-            H / 2,
-            Math.min(W, H) * .25,
-            W / 2,
-            H / 2,
-            Math.max(W, H) * .7
-        );
+  document.getElementById("hpBar").style.width =
+    `${Math.max(0, player.hp / player.maxHp * 100)}%`;
 
-    gradient.addColorStop(
-        0,
-        "rgba(0,0,0,0)"
-    );
+  document.getElementById("staminaBar").style.width =
+    `${Math.max(0, player.stamina / player.maxStamina * 100)}%`;
 
-    gradient.addColorStop(
-        1,
-        "rgba(0,0,0,.45)"
-    );
-
-    ctx.fillStyle = gradient;
-
-    ctx.fillRect(
-        0,
-        0,
-        W,
-        H
-    );
+  updateQuestText();
 }
 
 /* =========================================================
-   RENDER
-========================================================= */
-
-function render() {
-
-    ctx.clearRect(
-        0,
-        0,
-        W,
-        H
-    );
-
-    const shakeX =
-        random(
-            -camera.shake,
-            camera.shake
-        );
-
-    const shakeY =
-        random(
-            -camera.shake,
-            camera.shake
-        );
-
-    ctx.save();
-
-    ctx.translate(
-        shakeX,
-        shakeY
-    );
-
-    drawGround();
-
-    drawShelter();
-
-    drawCampfire();
-
-    drawResources();
-
-    drawMushrooms();
-
-    drawTrees();
-
-    drawRocks();
-
-    drawEnemies();
-
-    drawParticles();
-
-    drawPlayer();
-
-    ctx.restore();
-
-    drawNightOverlay();
-
-    drawVignette();
-}
-
-/* =========================================================
-   MAIN LOOP
+   GAME LOOP
 ========================================================= */
 
 let lastTime = performance.now();
 
-function gameLoop(now) {
+function loop(now) {
 
-    const dt =
-        Math.min(
-            (now - lastTime) / 1000,
-            .05
-        );
+  const dt =
+    Math.min(
+      (now - lastTime) / 1000,
+      .033
+    );
 
-    lastTime = now;
+  lastTime = now;
 
-    gameTime += dt;
+  updateWorldTime(dt);
 
-    updateWorldTime(dt);
+  updatePlayer(dt);
 
-    updatePlayer(dt);
+  updateGoblins(dt);
 
-    updateEnemies(dt);
+  collectResources();
 
-    updateParticles(dt);
+  updateParticles(dt);
 
-    updateCamera(dt);
+  updateCamera(dt);
 
-    updateMessage(dt);
+  updateInteractionHint();
 
-    updateQuest();
+  updateHUD();
 
-    updateHUD();
+  /* =========================
+     DESENHO
+  ========================= */
 
-    render();
+  ctx.clearRect(
+    0,
+    0,
+    W,
+    H
+  );
 
-    requestAnimationFrame(gameLoop);
+  const shakeX =
+    random(
+      -camera.shake,
+      camera.shake
+    );
+
+  const shakeY =
+    random(
+      -camera.shake,
+      camera.shake
+    );
+
+  ctx.save();
+
+  ctx.translate(
+    W / 2 + shakeX,
+    H / 2 + shakeY
+  );
+
+  ctx.scale(
+    camera.zoom,
+    camera.zoom
+  );
+
+  ctx.translate(
+    -camera.x,
+    -camera.y
+  );
+
+  drawGround();
+
+  drawTrees();
+
+  drawRocks();
+
+  drawMushrooms();
+
+  drawShelter();
+
+  drawCampfire();
+
+  drawGoblins();
+
+  drawElder();
+
+  drawPlayer();
+
+  drawParticles();
+
+  drawNight();
+
+  drawLighting();
+
+  ctx.restore();
+
+  requestAnimationFrame(loop);
 }
 
 /* =========================================================
-   BUTTONS
+   INICIALIZAÇÃO
 ========================================================= */
 
-document
-    .getElementById("attackButton")
-    .addEventListener(
-        "pointerdown",
-        attack
-    );
-
-document
-    .getElementById("dodgeButton")
-    .addEventListener(
-        "pointerdown",
-        dodge
-    );
-
-document
-    .getElementById("interactButton")
-    .addEventListener(
-        "pointerdown",
-        interact
-    );
-
-/* =========================================================
-   START
-========================================================= */
-
-updateHUD();
 updateInventoryUI();
+updateQuestText();
 
-setTimeout(() => {
-
-    const loading =
-        document.getElementById("loading");
-
-    loading.style.opacity = "0";
-
-    setTimeout(() => {
-        loading.style.display = "none";
-    }, 700);
-
-}, 900);
-
-showMessage(
-    "A floresta está silenciosa..."
-);
-
-requestAnimationFrame(gameLoop);
+requestAnimationFrame(loop);
