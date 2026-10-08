@@ -1,574 +1,1288 @@
+/* =========================================================
+   DARKWOOD — style.css
+   V5 — Interface, HUD, inventário, diálogo, mapa e mobile
+   ========================================================= */
+
 * {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-  user-select: none;
-  -webkit-user-select: none;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
 }
 
 html,
 body {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  background: #070b09;
-  font-family: Arial, sans-serif;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #050706;
+    color: #f0ead8;
+    font-family: Arial, Helvetica, sans-serif;
+    user-select: none;
+    touch-action: none;
 }
 
 body {
-  position: relative;
+    position: fixed;
+    inset: 0;
 }
 
-canvas {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  display: block;
-  background: #111914;
+/* =========================================================
+   CANVAS
+   ========================================================= */
+
+#gameCanvas {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    display: block;
+    background: #07100b;
+    image-rendering: auto;
+    z-index: 1;
 }
 
-/* =========================
-   HUD
-========================= */
+/* =========================================================
+   LOADING
+   ========================================================= */
 
-#hud {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
+#loading {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    background:
+        radial-gradient(circle at center, rgba(39, 67, 43, 0.28), transparent 45%),
+        #030504;
+    color: #d8e8d2;
+    transition: opacity 0.5s ease;
 }
 
-#status {
-  position: absolute;
-  top: 18px;
-  left: 18px;
-  width: 190px;
+#loading h1 {
+    font-size: clamp(30px, 8vw, 64px);
+    letter-spacing: 9px;
+    font-weight: 900;
+    text-shadow:
+        0 0 10px rgba(126, 177, 118, 0.4),
+        0 0 35px rgba(72, 111, 67, 0.3);
 }
 
-.bar {
-  margin-bottom: 8px;
-  color: white;
-  font-size: 10px;
-  font-weight: bold;
-  text-shadow: 0 2px 4px black;
+#loading p {
+    font-size: 12px;
+    letter-spacing: 3px;
+    opacity: 0.6;
+    text-transform: uppercase;
 }
 
-.bar-bg {
-  height: 10px;
-  margin-top: 3px;
-  overflow: hidden;
-  border-radius: 8px;
-  background: rgba(0, 0, 0, .65);
-  border: 1px solid rgba(255, 255, 255, .15);
+#loadingProgress {
+    width: min(330px, 65vw);
+    height: 5px;
+    overflow: hidden;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.08);
 }
 
-.bar-fill {
-  height: 100%;
-  width: 100%;
-  transition: width .15s;
+#loadingProgress::before {
+    content: "";
+    display: block;
+    width: 65%;
+    height: 100%;
+    border-radius: inherit;
+    background: #8da67b;
+    box-shadow: 0 0 14px rgba(141, 166, 123, 0.8);
+    animation: loadingBar 1.4s ease-in-out infinite;
 }
 
-.hp {
-  background: #d74a4a;
+@keyframes loadingBar {
+    0% {
+        transform: translateX(-110%);
+    }
+
+    100% {
+        transform: translateX(230%);
+    }
 }
 
-.stamina {
-  background: #d5b94d;
+/* =========================================================
+   HUD PRINCIPAL
+   ========================================================= */
+
+#gameTitle {
+    position: fixed;
+    top: 18px;
+    left: 20px;
+    z-index: 20;
+    color: #d9dfcb;
+    font-size: 15px;
+    font-weight: 900;
+    letter-spacing: 4px;
+    text-shadow:
+        0 2px 4px #000,
+        0 0 15px rgba(170, 190, 150, 0.25);
 }
+
+#statusPanel {
+    position: fixed;
+    top: 48px;
+    left: 20px;
+    z-index: 20;
+    width: 235px;
+    padding: 12px;
+    border: 1px solid rgba(205, 220, 190, 0.16);
+    border-radius: 12px;
+    background: rgba(5, 10, 7, 0.72);
+    backdrop-filter: blur(8px);
+    box-shadow:
+        0 8px 30px rgba(0, 0, 0, 0.35),
+        inset 0 1px rgba(255, 255, 255, 0.04);
+}
+
+#statusPanel > div {
+    margin-bottom: 7px;
+}
+
+#statusPanel > div:last-child {
+    margin-bottom: 0;
+}
+
+#statusPanel span {
+    display: inline-block;
+    min-width: 58px;
+    color: #b9c4ae;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+#hpBar,
+#staminaBar {
+    display: inline-block;
+    width: 135px;
+    height: 8px;
+    vertical-align: middle;
+    overflow: hidden;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+#hpBar {
+    box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.7);
+}
+
+#staminaBar {
+    box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.7);
+}
+
+#hpBar::before,
+#staminaBar::before {
+    content: "";
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+}
+
+#hpBar::before {
+    background: linear-gradient(90deg, #7b2020, #d35b4d);
+}
+
+#staminaBar::before {
+    background: linear-gradient(90deg, #526f3e, #b1ca72);
+}
+
+#hpText,
+#staminaText {
+    min-width: 0 !important;
+    margin-left: 4px;
+    color: #ddd;
+    font-size: 9px !important;
+    letter-spacing: 0 !important;
+    text-transform: none !important;
+}
+
+#dayText,
+#resourceText {
+    color: #b8c4b0;
+    font-size: 10px;
+}
+
+#resourceText {
+    line-height: 1.5;
+}
+
+/* =========================================================
+   QUEST
+   ========================================================= */
 
 #questBox {
-  position: absolute;
-  top: 18px;
-  right: 18px;
-  width: 280px;
-  padding: 12px 14px;
-  border-radius: 10px;
-  background: rgba(8, 12, 10, .82);
-  border: 1px solid rgba(255, 255, 255, .12);
-  color: white;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, .3);
+    position: fixed;
+    top: 18px;
+    left: 50%;
+    z-index: 20;
+    width: min(390px, 45vw);
+    padding: 11px 15px;
+    transform: translateX(-50%);
+    border: 1px solid rgba(195, 215, 174, 0.18);
+    border-radius: 10px;
+    background: rgba(5, 9, 6, 0.7);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 7px 25px rgba(0, 0, 0, 0.25);
 }
 
-.quest-title {
-  color: #d7b86e;
-  font-size: 10px;
-  letter-spacing: 2px;
-  margin-bottom: 4px;
+#questBox::before {
+    content: "MISSÃO";
+    display: block;
+    margin-bottom: 5px;
+    color: #9eae88;
+    font-size: 8px;
+    font-weight: 900;
+    letter-spacing: 3px;
 }
 
-#questName {
-  font-size: 14px;
-  font-weight: bold;
-  margin-bottom: 6px;
+#questText {
+    color: #d7dccd;
+    font-size: 11px;
+    line-height: 1.4;
 }
 
-#questObjective {
-  font-size: 12px;
-  color: #c8d0c9;
-  line-height: 1.4;
+/* =========================================================
+   INTERAÇÃO
+   ========================================================= */
+
+#interaction {
+    position: fixed;
+    bottom: 145px;
+    left: 50%;
+    z-index: 25;
+    min-width: 170px;
+    padding: 9px 14px;
+    transform: translateX(-50%);
+    border: 1px solid rgba(215, 225, 201, 0.2);
+    border-radius: 8px;
+    background: rgba(5, 8, 6, 0.82);
+    color: #e6eadf;
+    text-align: center;
+    font-size: 11px;
+    box-shadow: 0 6px 25px rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(8px);
+    pointer-events: none;
 }
 
-#inventoryButton {
-  pointer-events: auto;
-  position: absolute;
-  right: 18px;
-  bottom: 18px;
+/* =========================================================
+   V5 HUD
+   ========================================================= */
 
-  width: 48px;
-  height: 48px;
-
-  border: 1px solid rgba(255, 255, 255, .15);
-  border-radius: 12px;
-
-  background: rgba(8, 12, 10, .85);
-  color: white;
-
-  font-size: 22px;
+#v5Hud {
+    position: fixed;
+    top: 18px;
+    right: 18px;
+    z-index: 20;
+    width: 215px;
+    padding: 12px;
+    border: 1px solid rgba(205, 220, 190, 0.15);
+    border-radius: 12px;
+    background: rgba(5, 9, 6, 0.7);
+    backdrop-filter: blur(9px);
+    box-shadow:
+        0 8px 30px rgba(0, 0, 0, 0.3),
+        inset 0 1px rgba(255, 255, 255, 0.04);
 }
 
-/* =========================
-   PAINEL
-========================= */
-
-.panel {
-  position: fixed;
-  z-index: 20;
-
-  left: 50%;
-  top: 50%;
-
-  transform: translate(-50%, -50%);
-
-  width: min(430px, calc(100% - 30px));
-  max-height: 90vh;
-
-  overflow-y: auto;
-
-  padding: 18px;
-
-  border-radius: 16px;
-
-  background:
-    linear-gradient(
-      145deg,
-      rgba(19, 27, 23, .98),
-      rgba(8, 12, 10, .98)
-    );
-
-  border: 1px solid rgba(255, 255, 255, .12);
-
-  color: white;
-
-  box-shadow:
-    0 20px 80px rgba(0, 0, 0, .7);
+#v5Hud > div {
+    margin-bottom: 7px;
 }
 
-.hidden {
-  display: none !important;
+#v5Hud > div:last-child {
+    margin-bottom: 0;
 }
 
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
+#v5Level {
+    color: #e0e5d6;
+    font-size: 13px;
+    font-weight: 900;
 }
 
-.panel-header h2 {
-  font-size: 20px;
+#v5Gold {
+    float: right;
+    color: #d4b66b;
+    font-size: 11px;
 }
 
-.panel-header button {
-  width: 34px;
-  height: 34px;
-
-  border: 0;
-  border-radius: 8px;
-
-  background: rgba(255, 255, 255, .08);
-  color: white;
-
-  font-size: 16px;
+#v5XpBar {
+    width: 100%;
+    height: 6px;
+    margin: 4px 0;
+    overflow: hidden;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.08);
 }
 
-.panel h3 {
-  margin: 20px 0 10px;
-  font-size: 13px;
-  color: #c5b273;
+#v5XpBar::before {
+    content: "";
+    display: block;
+    width: 30%;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #586e83, #9fb5c8);
+    box-shadow: 0 0 9px rgba(159, 181, 200, 0.35);
 }
 
-.resources,
-.crafted {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+#v5Xp {
+    display: block;
+    color: #9da8a0;
+    font-size: 8px;
+    text-align: right;
 }
 
-.resource {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-
-  padding: 10px;
-
-  border-radius: 8px;
-
-  background: rgba(255, 255, 255, .045);
+#v5Hunger,
+#v5Thirst,
+#v5Class,
+#weatherText {
+    color: #aeb8aa;
+    font-size: 9px;
 }
 
-.resource strong {
-  color: #e2c878;
+#v5Class {
+    color: #c4cfb7;
+    font-weight: 700;
 }
 
-.craft-buttons {
-  display: grid;
-  gap: 8px;
+/* =========================================================
+   NOTIFICAÇÃO
+   ========================================================= */
+
+#v5Notification {
+    position: fixed;
+    top: 105px;
+    left: 50%;
+    z-index: 80;
+    max-width: min(420px, 80vw);
+    padding: 10px 17px;
+    transform: translateX(-50%);
+    border: 1px solid rgba(210, 220, 195, 0.2);
+    border-radius: 9px;
+    background: rgba(8, 12, 8, 0.88);
+    color: #dce2d5;
+    font-size: 11px;
+    text-align: center;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(10px);
+    pointer-events: none;
 }
 
-.craft-buttons button {
-  text-align: left;
+/* =========================================================
+   INVENTÁRIO
+   ========================================================= */
 
-  padding: 12px;
-
-  border: 1px solid rgba(255, 255, 255, .08);
-  border-radius: 9px;
-
-  background: rgba(255, 255, 255, .045);
-  color: white;
-
-  font-size: 14px;
+#inventoryPanel {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    z-index: 100;
+    width: min(460px, 92vw);
+    max-height: 85vh;
+    padding: 20px;
+    overflow-y: auto;
+    transform: translate(-50%, -50%);
+    border: 1px solid rgba(184, 201, 163, 0.22);
+    border-radius: 16px;
+    background:
+        linear-gradient(
+            145deg,
+            rgba(18, 26, 19, 0.97),
+            rgba(5, 9, 6, 0.97)
+        );
+    box-shadow:
+        0 25px 80px rgba(0, 0, 0, 0.7),
+        inset 0 1px rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(15px);
 }
 
-.craft-buttons button:active {
-  transform: scale(.98);
+#inventoryPanel::-webkit-scrollbar {
+    width: 5px;
 }
 
-.craft-buttons small {
-  display: block;
-  margin-top: 4px;
-  color: #929b94;
-  font-size: 10px;
+#inventoryPanel::-webkit-scrollbar-thumb {
+    border-radius: 10px;
+    background: rgba(170, 185, 150, 0.25);
 }
 
-/* =========================
+#inventoryPanel h2 {
+    margin-bottom: 16px;
+    color: #dce4d3;
+    font-size: 18px;
+    letter-spacing: 3px;
+}
+
+#closeInventory {
+    position: absolute;
+    top: 13px;
+    right: 13px;
+    width: 30px;
+    height: 30px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    color: #cfd7c8;
+    font-size: 17px;
+    cursor: pointer;
+}
+
+#closeInventory:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+#inventoryPanel p {
+    margin: 7px 0;
+    color: #aeb8aa;
+    font-size: 11px;
+}
+
+#inventoryPanel strong {
+    color: #e0e7db;
+}
+
+#inventoryPanel h3 {
+    margin: 18px 0 10px;
+    color: #9fab92;
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+}
+
+#inventoryPanel button {
+    width: 100%;
+    min-height: 39px;
+    margin: 5px 0;
+    padding: 8px 11px;
+    border: 1px solid rgba(178, 198, 157, 0.14);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.045);
+    color: #d8ded2;
+    font-size: 11px;
+    text-align: left;
+    cursor: pointer;
+    transition:
+        background 0.15s ease,
+        border 0.15s ease,
+        transform 0.1s ease;
+}
+
+#inventoryPanel button:hover {
+    border-color: rgba(178, 198, 157, 0.3);
+    background: rgba(120, 145, 105, 0.12);
+}
+
+#inventoryPanel button:active {
+    transform: scale(0.98);
+}
+
+/* =========================================================
    DIÁLOGO
-========================= */
+   ========================================================= */
 
-.dialogue {
-  position: fixed;
-  z-index: 30;
-  inset: 0;
-
-  display: flex;
-  justify-content: center;
-  align-items: flex-end;
-
-  padding: 20px;
-  pointer-events: none;
+#dialoguePanel {
+    position: fixed;
+    left: 50%;
+    bottom: 40px;
+    z-index: 120;
+    width: min(720px, 90vw);
+    padding: 18px 20px;
+    transform: translateX(-50%);
+    border: 1px solid rgba(206, 220, 192, 0.2);
+    border-radius: 14px;
+    background:
+        linear-gradient(
+            145deg,
+            rgba(9, 14, 10, 0.96),
+            rgba(4, 7, 5, 0.96)
+        );
+    box-shadow:
+        0 18px 55px rgba(0, 0, 0, 0.65),
+        inset 0 1px rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(12px);
 }
 
-.dialogue-box {
-  width: min(760px, 100%);
-
-  padding: 18px;
-
-  border-radius: 16px 16px 10px 10px;
-
-  background:
-    linear-gradient(
-      145deg,
-      rgba(17, 24, 20, .98),
-      rgba(7, 10, 9, .98)
-    );
-
-  border: 1px solid rgba(255, 255, 255, .13);
-
-  box-shadow:
-    0 -10px 60px rgba(0, 0, 0, .55);
-
-  pointer-events: auto;
-}
-
-.dialogue-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-
-  margin-bottom: 15px;
-}
-
-#dialogueAvatar {
-  width: 50px;
-  height: 50px;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  border-radius: 50%;
-
-  background: rgba(255, 255, 255, .08);
-
-  font-size: 27px;
-}
-
-#dialogueName {
-  color: #e4c978;
-  font-weight: bold;
-  font-size: 16px;
-}
-
-#dialogueRole {
-  color: #89928b;
-  font-size: 11px;
-  margin-top: 3px;
+#dialogueSpeaker {
+    margin-bottom: 8px;
+    color: #b3c596;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    text-transform: uppercase;
 }
 
 #dialogueText {
-  min-height: 65px;
-
-  color: #e4e9e5;
-
-  font-size: 14px;
-  line-height: 1.65;
-
-  margin-bottom: 14px;
+    min-height: 45px;
+    color: #e2e6de;
+    font-size: 13px;
+    line-height: 1.65;
 }
 
 #dialogueChoices {
-  display: grid;
-  gap: 8px;
-  margin-bottom: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 13px;
 }
 
-.dialogue-choice {
-  width: 100%;
-
-  padding: 11px;
-
-  border: 1px solid rgba(215, 184, 110, .25);
-  border-radius: 8px;
-
-  background: rgba(215, 184, 110, .07);
-
-  color: #e9dfc4;
-
-  text-align: left;
+#dialogueChoices button {
+    flex: 1 1 180px;
+    min-height: 38px;
+    padding: 8px 12px;
+    border: 1px solid rgba(175, 197, 151, 0.2);
+    border-radius: 8px;
+    background: rgba(130, 155, 110, 0.08);
+    color: #d7dfd0;
+    font-size: 11px;
+    cursor: pointer;
 }
 
-.dialogue-choice:active {
-  transform: scale(.98);
+#dialogueChoices button:hover {
+    background: rgba(130, 155, 110, 0.16);
 }
 
-#dialogueContinue {
-  width: 100%;
+/* =========================================================
+   ESCOLHA DE CLASSE
+   ========================================================= */
 
-  padding: 11px;
-
-  border: 0;
-  border-radius: 8px;
-
-  background: #b69a56;
-  color: #111;
-
-  font-weight: bold;
+#classSelection {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(2, 4, 3, 0.8);
+    backdrop-filter: blur(10px);
 }
 
-/* =========================
-   INTERAÇÃO
-========================= */
-
-#interactionHint {
-  position: fixed;
-  z-index: 10;
-
-  left: 50%;
-  bottom: 110px;
-
-  transform: translateX(-50%);
-
-  padding: 8px 13px;
-
-  border-radius: 8px;
-
-  background: rgba(5, 8, 7, .78);
-
-  color: white;
-
-  font-size: 12px;
-
-  opacity: 0;
-  transition: opacity .15s;
-
-  pointer-events: none;
+#classSelection > div,
+#classSelection .class-container {
+    width: min(700px, 94vw);
+    padding: 25px;
+    border: 1px solid rgba(203, 220, 190, 0.18);
+    border-radius: 18px;
+    background: #090e0a;
+    box-shadow: 0 25px 80px rgba(0, 0, 0, 0.7);
 }
 
-#interactionHint.show {
-  opacity: 1;
+#classSelection h2 {
+    margin-bottom: 8px;
+    color: #e0e7da;
+    text-align: center;
+    font-size: 22px;
+    letter-spacing: 2px;
 }
 
-/* =========================
-   MENSAGEM
-========================= */
-
-#message {
-  position: fixed;
-  z-index: 15;
-
-  left: 50%;
-  top: 20%;
-
-  transform: translateX(-50%);
-
-  max-width: 80%;
-
-  padding: 10px 15px;
-
-  border-radius: 9px;
-
-  background: rgba(8, 12, 10, .9);
-
-  border: 1px solid rgba(255, 255, 255, .1);
-
-  color: white;
-
-  font-size: 13px;
-
-  text-align: center;
-
-  opacity: 0;
-  pointer-events: none;
-
-  transition: opacity .2s;
+#classSelection p {
+    margin-bottom: 18px;
+    color: #9fa99c;
+    font-size: 11px;
+    text-align: center;
 }
 
-#message.show {
-  opacity: 1;
+#classSelection button {
+    width: 100%;
+    min-height: 55px;
+    margin: 6px 0;
+    border: 1px solid rgba(183, 202, 159, 0.17);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.045);
+    color: #e0e5db;
+    font-size: 12px;
+    cursor: pointer;
 }
 
-/* =========================
-   MOBILE
-========================= */
-
-#mobileControls {
-  position: fixed;
-  z-index: 10;
-
-  inset: auto 0 0 0;
-
-  height: 170px;
-
-  pointer-events: none;
+#classSelection button:hover {
+    background: rgba(140, 160, 120, 0.12);
 }
+
+/* =========================================================
+   MAPA
+   ========================================================= */
+
+#mapPanel {
+    position: fixed;
+    inset: 0;
+    z-index: 150;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(2, 4, 3, 0.82);
+    backdrop-filter: blur(8px);
+}
+
+#mapPanel h2 {
+    position: absolute;
+    top: 8vh;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #dce4d6;
+    font-size: 18px;
+    letter-spacing: 4px;
+}
+
+#closeMap {
+    position: absolute;
+    top: 7vh;
+    right: 7vw;
+    z-index: 5;
+    width: 38px;
+    height: 38px;
+    border: 1px solid rgba(210, 220, 200, 0.2);
+    border-radius: 10px;
+    background: rgba(10, 15, 10, 0.8);
+    color: #d6ded0;
+    font-size: 18px;
+    cursor: pointer;
+}
+
+#mapContainer {
+    position: relative;
+    width: min(700px, 86vw);
+    height: min(500px, 65vh);
+    overflow: hidden;
+    border: 2px solid rgba(165, 184, 145, 0.25);
+    border-radius: 14px;
+    background:
+        radial-gradient(circle at 50% 50%, #203024, #101911 70%);
+    box-shadow:
+        0 25px 90px rgba(0, 0, 0, 0.7),
+        inset 0 0 50px rgba(0, 0, 0, 0.5);
+}
+
+#mapContainer::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    opacity: 0.35;
+    background-image:
+        linear-gradient(rgba(170, 190, 150, 0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(170, 190, 150, 0.06) 1px, transparent 1px);
+    background-size: 40px 40px;
+}
+
+#mapPlayer,
+#mapShelter,
+#mapElder {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 12px currentColor;
+}
+
+#mapPlayer {
+    background: #d9e8c4;
+    color: #d9e8c4;
+}
+
+#mapShelter {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    background: #a87955;
+    color: #a87955;
+}
+
+#mapElder {
+    background: #a7b9d0;
+    color: #a7b9d0;
+}
+
+/* =========================================================
+   PAUSE
+   ========================================================= */
+
+#pausePanel {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(2, 4, 3, 0.82);
+    backdrop-filter: blur(10px);
+}
+
+#pausePanel h2 {
+    margin-bottom: 22px;
+    color: #dfe6da;
+    font-size: 28px;
+    letter-spacing: 6px;
+    text-align: center;
+}
+
+#pausePanel button {
+    display: block;
+    width: min(280px, 75vw);
+    min-height: 45px;
+    margin: 8px auto;
+    border: 1px solid rgba(180, 200, 160, 0.18);
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.05);
+    color: #d9e0d4;
+    cursor: pointer;
+}
+
+#pausePanel button:hover {
+    background: rgba(140, 160, 120, 0.13);
+}
+
+/* =========================================================
+   JOYSTICK
+   ========================================================= */
 
 #joystick {
-  position: absolute;
-
-  left: 25px;
-  bottom: 25px;
-
-  width: 110px;
-  height: 110px;
-
-  border-radius: 50%;
-
-  background: rgba(255, 255, 255, .06);
-  border: 1px solid rgba(255, 255, 255, .1);
-
-  pointer-events: auto;
-  touch-action: none;
+    position: fixed;
+    left: 25px;
+    bottom: 30px;
+    z-index: 40;
+    width: 125px;
+    height: 125px;
+    border: 1px solid rgba(200, 220, 185, 0.14);
+    border-radius: 50%;
+    background: rgba(10, 16, 11, 0.35);
+    box-shadow:
+        inset 0 0 30px rgba(0, 0, 0, 0.3),
+        0 8px 25px rgba(0, 0, 0, 0.25);
 }
 
 #joystickKnob {
-  position: absolute;
-
-  left: 50%;
-  top: 50%;
-
-  width: 48px;
-  height: 48px;
-
-  transform: translate(-50%, -50%);
-
-  border-radius: 50%;
-
-  background: rgba(255, 255, 255, .18);
-  border: 1px solid rgba(255, 255, 255, .15);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 55px;
+    height: 55px;
+    transform: translate(-50%, -50%);
+    border: 1px solid rgba(220, 235, 210, 0.2);
+    border-radius: 50%;
+    background: rgba(150, 170, 130, 0.18);
+    box-shadow:
+        0 0 20px rgba(120, 150, 100, 0.15),
+        inset 0 1px rgba(255, 255, 255, 0.08);
 }
 
-.action-buttons {
-  position: absolute;
+/* =========================================================
+   MOBILE ACTION BUTTONS
+   ========================================================= */
 
-  right: 18px;
-  bottom: 24px;
-
-  display: flex;
-  gap: 10px;
-
-  align-items: flex-end;
-}
-
-.action-buttons button {
-  width: 54px;
-  height: 54px;
-
-  border-radius: 50%;
-
-  border: 1px solid rgba(255, 255, 255, .12);
-
-  background: rgba(8, 12, 10, .78);
-
-  color: white;
-
-  font-size: 19px;
-
-  pointer-events: auto;
-  touch-action: manipulation;
+#interactButton,
+#attackButton,
+#specialButton,
+#dodgeButton,
+#potionButton,
+#eatButton,
+#inventoryButton,
+#mapButton {
+    position: fixed;
+    z-index: 45;
+    width: 55px;
+    height: 55px;
+    border: 1px solid rgba(215, 225, 205, 0.18);
+    border-radius: 50%;
+    background:
+        radial-gradient(
+            circle,
+            rgba(100, 125, 90, 0.25),
+            rgba(7, 11, 8, 0.68)
+        );
+    color: #d9e0d2;
+    font-size: 18px;
+    box-shadow:
+        0 6px 22px rgba(0, 0, 0, 0.4),
+        inset 0 1px rgba(255, 255, 255, 0.06);
+    cursor: pointer;
+    backdrop-filter: blur(6px);
 }
 
 #interactButton {
-  width: 44px !important;
-  height: 44px !important;
-  font-size: 14px !important;
+    right: 185px;
+    bottom: 40px;
 }
 
-@media (min-width: 800px) {
-
-  #mobileControls {
-    opacity: .45;
-  }
-
+#attackButton {
+    right: 35px;
+    bottom: 105px;
+    width: 70px;
+    height: 70px;
+    border-color: rgba(200, 190, 160, 0.25);
+    background:
+        radial-gradient(
+            circle,
+            rgba(125, 105, 70, 0.25),
+            rgba(7, 9, 7, 0.75)
+        );
+    font-size: 23px;
 }
 
-@media (max-width: 600px) {
-
-  #status {
-    top: 10px;
-    left: 10px;
-    width: 145px;
-  }
-
-  #questBox {
-    top: 10px;
-    right: 10px;
-    width: 190px;
-    padding: 9px;
-  }
-
-  #questName {
-    font-size: 12px;
-  }
-
-  #questObjective {
-    font-size: 10px;
-  }
-
-  .dialogue {
-    padding: 10px;
-  }
-
-  .dialogue-box {
-    padding: 14px;
-  }
-
+#specialButton {
+    right: 120px;
+    bottom: 170px;
 }
+
+#dodgeButton {
+    right: 35px;
+    bottom: 30px;
+}
+
+#potionButton {
+    right: 120px;
+    bottom: 30px;
+}
+
+#eatButton {
+    right: 205px;
+    bottom: 110px;
+}
+
+#inventoryButton {
+    top: 105px;
+    right: 18px;
+}
+
+#mapButton {
+    top: 170px;
+    right: 18px;
+}
+
+/* =========================================================
+   DAMAGE FLASH
+   ========================================================= */
+
+#damageFlash {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    pointer-events: none;
+    background:
+        radial-gradient(
+            circle,
+            transparent 35%,
+            rgba(145, 20, 20, 0.28)
+        );
+    opacity: 0;
+    transition: opacity 0.08s ease;
+}
+
+/* =========================================================
+   BOTÕES — ESTADO TOUCH
+   ========================================================= */
+
+#interactButton:active,
+#attackButton:active,
+#specialButton:active,
+#dodgeButton:active,
+#potionButton:active,
+#eatButton:active,
+#inventoryButton:active,
+#mapButton:active {
+    transform: scale(0.92);
+    background:
+        radial-gradient(
+            circle,
+            rgba(170, 190, 150, 0.3),
+            rgba(7, 11, 8, 0.78)
+        );
+}
+
+/* =========================================================
+   RESPONSIVIDADE — CELULAR
+   ========================================================= */
+
+@media (max-width: 700px) {
+
+    #gameTitle {
+        top: 10px;
+        left: 12px;
+        font-size: 11px;
+        letter-spacing: 3px;
+    }
+
+    #statusPanel {
+        top: 35px;
+        left: 10px;
+        width: 185px;
+        padding: 8px;
+    }
+
+    #statusPanel span {
+        min-width: 48px;
+        font-size: 8px;
+    }
+
+    #hpBar,
+    #staminaBar {
+        width: 105px;
+        height: 6px;
+    }
+
+    #hpText,
+    #staminaText {
+        font-size: 7px !important;
+    }
+
+    #dayText,
+    #resourceText {
+        font-size: 8px;
+    }
+
+    #questBox {
+        top: 10px;
+        left: 50%;
+        width: 43vw;
+        min-width: 160px;
+        max-width: 240px;
+        padding: 8px 10px;
+    }
+
+    #questBox::before {
+        margin-bottom: 3px;
+        font-size: 7px;
+    }
+
+    #questText {
+        font-size: 8px;
+    }
+
+    #v5Hud {
+        top: 35px;
+        right: 10px;
+        width: 160px;
+        padding: 8px;
+    }
+
+    #v5Level {
+        font-size: 10px;
+    }
+
+    #v5Gold,
+    #v5Xp,
+    #v5Hunger,
+    #v5Thirst,
+    #v5Class,
+    #weatherText {
+        font-size: 7px;
+    }
+
+    #v5XpBar {
+        height: 5px;
+    }
+
+    #interaction {
+        bottom: 155px;
+        min-width: 145px;
+        padding: 7px 10px;
+        font-size: 9px;
+    }
+
+    #dialoguePanel {
+        bottom: 20px;
+        width: 92vw;
+        padding: 14px;
+    }
+
+    #dialogueSpeaker {
+        font-size: 10px;
+    }
+
+    #dialogueText {
+        font-size: 11px;
+        line-height: 1.5;
+    }
+
+    #dialogueChoices {
+        gap: 5px;
+    }
+
+    #dialogueChoices button {
+        min-height: 34px;
+        padding: 7px;
+        font-size: 9px;
+    }
+
+    #joystick {
+        left: 15px;
+        bottom: 18px;
+        width: 110px;
+        height: 110px;
+    }
+
+    #joystickKnob {
+        width: 48px;
+        height: 48px;
+    }
+
+    #interactButton {
+        right: 150px;
+        bottom: 28px;
+        width: 48px;
+        height: 48px;
+    }
+
+    #attackButton {
+        right: 18px;
+        bottom: 82px;
+        width: 63px;
+        height: 63px;
+    }
+
+    #specialButton {
+        right: 91px;
+        bottom: 145px;
+        width: 48px;
+        height: 48px;
+    }
+
+    #dodgeButton {
+        right: 18px;
+        bottom: 17px;
+        width: 48px;
+        height: 48px;
+    }
+
+    #potionButton {
+        right: 91px;
+        bottom: 17px;
+        width: 48px;
+        height: 48px;
+    }
+
+    #eatButton {
+        right: 150px;
+        bottom: 88px;
+        width: 48px;
+        height: 48px;
+    }
+
+    #inventoryButton {
+        top: 120px;
+        right: 10px;
+        width: 45px;
+        height: 45px;
+        font-size: 16px;
+    }
+
+    #mapButton {
+        top: 175px;
+        right: 10px;
+        width: 45px;
+        height: 45px;
+        font-size: 16px;
+    }
+
+    #inventoryPanel {
+        width: 92vw;
+        max-height: 80vh;
+        padding: 16px;
+    }
+
+    #inventoryPanel h2 {
+        font-size: 15px;
+    }
+
+    #inventoryPanel button {
+        min-height: 36px;
+        font-size: 10px;
+    }
+
+    #mapContainer {
+        width: 92vw;
+        height: 60vh;
+    }
+
+    #mapPanel h2 {
+        top: 5vh;
+        font-size: 14px;
+    }
+
+    #closeMap {
+        top: 5vh;
+        right: 4vw;
+        width: 34px;
+        height: 34px;
+    }
+
+    #pausePanel h2 {
+        font-size: 22px;
+    }
+}
+
+/* =========================================================
+   CELULAR MUITO PEQUENO
+   ========================================================= */
+
+@media (max-width: 390px) {
+
+    #statusPanel {
+        width: 165px;
+    }
+
+    #hpBar,
+    #staminaBar {
+        width: 85px;
+    }
+
+    #v5Hud {
+        width: 145px;
+    }
+
+    #questBox {
+        width: 38vw;
+        min-width: 140px;
+    }
+
+    #joystick {
+        width: 100px;
+        height: 100px;
+    }
+
+    #attackButton {
+        width: 58px;
+        height: 58px;
+    }
+
+    #interactButton {
+        right: 137px;
+    }
+
+    #eatButton {
+        right: 137px;
+    }
+}
+
+/* =========================================================
+   ORIENTAÇÃO PAISAGEM
+   ========================================================= */
+
+@media (orientation: landscape) and (max-height: 520px) {
+
+    #statusPanel {
+        top: 8px;
+        left: 10px;
+    }
+
+    #gameTitle {
+        top: 5px;
+        left: 10px;
+    }
+
+    #v5Hud {
+        top: 8px;
+        right: 10px;
+    }
+
+    #questBox {
+        top: 8px;
+    }
+
+    #interaction {
+        bottom: 95px;
+    }
+
+    #joystick {
+        bottom: 12px;
+        left: 12px;
+        width: 95px;
+        height: 95px;
+    }
+
+    #joystickKnob {
+        width: 43px;
+        height: 43px;
+    }
+
+    #attackButton {
+        right: 15px;
+        bottom: 65px;
+    }
+
+    #dodgeButton {
+        right: 15px;
+        bottom: 8px;
+    }
+
+    #potionButton {
+        right: 85px;
+        bottom: 8px;
+    }
+
+    #specialButton {
+        right: 85px;
+        bottom: 125px;
+    }
+
+    #interactButton {
+        right: 145px;
+        bottom: 8px;
+    }
+
+    #eatButton {
+        right: 145px;
+        bottom: 70px;
+    }
+
+    #dialoguePanel {
+        bottom: 10px;
+        max-height: 42vh;
+        overflow-y: auto;
+    }
+}
+
+/* =========================================================
+   REDUÇÃO DE MOVIMENTO
+   ========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* =========================================================
+   SAFE AREA — CELULARES COM NOTCH
+   ========================================================= */
+
+@supports (padding: env(safe-area-inset-top)) {
+
+    #gameTitle {
+        top: calc(10px + env(safe-area-inset-top));
+    }
+
+    #statusPanel {
+        top: calc(35px + env(safe-area-inset-top));
+    }
+
+    #v5Hud {
+        top: calc(35px + env(safe-area-inset-top));
+    }
+
+    #joystick {
+        bottom: calc(18px + env(safe-area-inset-bottom));
+        left: calc(15px + env(safe-area-inset-left));
+    }
+
+    #attackButton {
+        right: calc(18px + env(safe-area-inset-right));
+        bottom: calc(82px + env(safe-area-inset-bottom));
+    }
+
+    #dodgeButton {
+        right: calc(18px + env(safe-area-inset-right));
+        bottom: calc(17px + env(safe-area-inset-bottom));
+    }
+  }
