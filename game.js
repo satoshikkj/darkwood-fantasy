@@ -1455,7 +1455,7 @@ function updateHUD() {
         document.getElementById("dayText");
 
     const resourcesText =
-        document.getElementById("resourcesText");
+        document.getElementById("resourceText");
 
     const questText =
         document.getElementById("questText");
