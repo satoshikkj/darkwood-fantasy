@@ -1,35 +1,11 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-const hpBar = document.getElementById("hpBar");
-const staminaBar = document.getElementById("staminaBar");
-const dayText = document.getElementById("dayText");
-const resourceText = document.getElementById("resourceText");
-const questText = document.getElementById("questText");
-const interaction = document.getElementById("interaction");
-const damageFlash = document.getElementById("damageFlash");
-
-const joystick = document.getElementById("joystick");
-const joystickKnob = document.getElementById("joystickKnob");
-
-const attackButton = document.getElementById("attackButton");
-const dodgeButton = document.getElementById("dodgeButton");
-const interactButton = document.getElementById("interactButton");
-
-const loading = document.getElementById("loading");
-
-
-/* =========================================================
-   CANVAS
-========================================================= */
-
 let W = 0;
 let H = 0;
-let DPR = 1;
+let DPR = Math.min(window.devicePixelRatio || 1, 2);
 
 function resizeCanvas() {
-    DPR = Math.min(window.devicePixelRatio || 1, 2);
-
     W = window.innerWidth;
     H = window.innerHeight;
 
@@ -45,7 +21,6 @@ function resizeCanvas() {
 window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
-
 /* =========================================================
    WORLD
 ========================================================= */
@@ -55,13 +30,15 @@ const world = {
     height: 2700
 };
 
+/* =========================================================
+   PLAYER
+========================================================= */
+
 const player = {
     x: 1800,
     y: 1350,
 
-    radius: 18,
-
-    speed: 170,
+    radius: 15,
 
     hp: 100,
     maxHp: 100,
@@ -69,72 +46,61 @@ const player = {
     stamina: 100,
     maxStamina: 100,
 
-    dirX: 0,
-    dirY: 1,
+    speed: 170,
 
-    attackTimer: 0,
+    dirX: 1,
+    dirY: 0,
+
     attackCooldown: 0,
+    attackTimer: 0,
 
-    dodgeTimer: 0,
     dodgeCooldown: 0,
+    dodgeTimer: 0,
 
     invulnerable: 0,
 
-    hurtTimer: 0,
-
-    attacking: false
+    hurtTimer: 0
 };
-
-
-const camera = {
-    x: player.x,
-    y: player.y,
-
-    shake: 0,
-    zoom: 1
-};
-
-
-const shelter = {
-    x: 1800,
-    y: 1350,
-    width: 260,
-    height: 190
-};
-
-
-const campfire = {
-    x: 1800,
-    y: 1455,
-    radius: 34
-};
-
 
 /* =========================================================
    GAME STATE
 ========================================================= */
 
-let day = 1;
-let worldTime = 20;
+let gameTime = 0;
+let worldTime = 0;
 
-const DAY_LENGTH = 180;
+let day = 1;
 
 let resources = {
     wood: 0,
     stone: 0,
-    mushroom: 0
+    mushroom: 0,
+    strange: 0
+};
+
+let inventoryOpen = false;
+
+let craftedItems = {
+    campfire: 0,
+    axe: 0,
+    sword: 0,
+    potion: 0
 };
 
 let questStage = 0;
 
-let message = "";
 let messageTimer = 0;
+let messageText = "";
 
-let gameStarted = false;
-
+let camera = {
+    x: player.x,
+    y: player.y,
+    shake: 0,
+    zoom: 1
+};
 
 /* =========================================================
-   OBJECTS
+   ARRAYS
 ========================================================= */
 
 const trees = [];
@@ -145,9 +111,6 @@ const stones = [];
 const enemies = [];
 const particles = [];
 
-const keys = {};
-
-
 /* =========================================================
    RANDOM
 ========================================================= */
@@ -156,28 +119,43 @@ function random(min, max) {
     return Math.random() * (max - min) + min;
 }
 
+function randomInt(min, max) {
+    return Math.floor(random(min, max + 1));
+}
+
 function distance(a, b) {
     return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
-function clamp(value, min, max) {
-    return Math.max(min, Math.min(max, value));
-}
+/* =========================================================
+   SHELTER
+========================================================= */
 
+const shelter = {
+    x: 1800,
+    y: 1350,
+    width: 260,
+    height: 190
+};
+
+const campfire = {
+    x: 1800,
+    y: 1490,
+    radius: 32
+};
 
 /* =========================================================
    WORLD GENERATION
 ========================================================= */
 
-function insideShelter(x, y) {
+function insideShelter(x, y, margin = 0) {
     return (
-        x > shelter.x - shelter.width / 2 &&
-        x < shelter.x + shelter.width / 2 &&
-        y > shelter.y - shelter.height / 2 &&
-        y < shelter.y + shelter.height / 2
+        x > shelter.x - shelter.width / 2 - margin &&
+        x < shelter.x + shelter.width / 2 + margin &&
+        y > shelter.y - shelter.height / 2 - margin &&
+        y < shelter.y + shelter.height / 2 + margin
     );
 }
-
 
 function generateWorld() {
 
@@ -190,80 +168,74 @@ function generateWorld() {
 
     for (let i = 0; i < 220; i++) {
 
-        let x;
-        let y;
+        const x = random(100, world.width - 100);
+        const y = random(100, world.height - 100);
 
-        do {
-            x = random(80, world.width - 80);
-            y = random(80, world.height - 80);
-        } while (insideShelter(x, y));
-
-        trees.push({
-            x,
-            y,
-            radius: random(22, 31),
-            scale: random(.8, 1.25)
-        });
+        if (!insideShelter(x, y, 180)) {
+            trees.push({
+                x,
+                y,
+                radius: random(22, 34)
+            });
+        }
     }
-
 
     for (let i = 0; i < 90; i++) {
 
-        let x;
-        let y;
+        const x = random(80, world.width - 80);
+        const y = random(80, world.height - 80);
 
-        do {
-            x = random(60, world.width - 60);
-            y = random(60, world.height - 60);
-        } while (insideShelter(x, y));
-
-        rocks.push({
-            x,
-            y,
-            radius: random(12, 22)
-        });
+        if (!insideShelter(x, y, 130)) {
+            rocks.push({
+                x,
+                y,
+                radius: random(14, 23)
+            });
+        }
     }
-
 
     for (let i = 0; i < 40; i++) {
 
-        let x;
-        let y;
+        const x = random(80, world.width - 80);
+        const y = random(80, world.height - 80);
 
-        do {
-            x = random(50, world.width - 50);
-            y = random(50, world.height - 50);
-        } while (insideShelter(x, y));
+        if (!insideShelter(x, y, 100)) {
 
-        mushrooms.push({
-            x,
-            y,
-            radius: 9,
-            strange: Math.random() < .20,
-            collected: false
-        });
+            mushrooms.push({
+                x,
+                y,
+                radius: 8,
+                strange: Math.random() < .2,
+                collected: false
+            });
+        }
     }
 
-
     for (let i = 0; i < 50; i++) {
+
+        const x = random(80, world.width - 80);
+        const y = random(80, world.height - 80);
 
         woods.push({
-            x: random(50, world.width - 50),
-            y: random(50, world.height - 50),
+            x,
+            y,
+            radius: 8,
             collected: false
         });
     }
-
 
     for (let i = 0; i < 50; i++) {
 
+        const x = random(80, world.width - 80);
+        const y = random(80, world.height - 80);
+
         stones.push({
-            x: random(50, world.width - 50),
-            y: random(50, world.height - 50),
+            x,
+            y,
+            radius: 8,
             collected: false
         });
     }
-
 
     for (let i = 0; i < 9; i++) {
 
@@ -271,70 +243,89 @@ function generateWorld() {
         let y;
 
         do {
-            x = random(250, world.width - 250);
-            y = random(250, world.height - 250);
+            x = random(300, world.width - 300);
+            y = random(300, world.height - 300);
         } while (
-            distance(
-                { x, y },
-                player
-            ) < 500
+            insideShelter(x, y, 300) ||
+            Math.hypot(x - player.x, y - player.y) < 500
         );
 
-        enemies.push(createGoblin(x, y));
+        enemies.push({
+            x,
+            y,
+            radius: 18,
+
+            hp: 60,
+            maxHp: 60,
+
+            speed: random(45, 65),
+
+            attackCooldown: random(0, 2),
+
+            wanderTimer: random(1, 4),
+
+            dirX: random(-1, 1),
+            dirY: random(-1, 1),
+
+            hitTimer: 0
+        });
     }
 }
 
-
-function createGoblin(x, y) {
-
-    return {
-        x,
-        y,
-
-        radius: 17,
-
-        hp: 60,
-        maxHp: 60,
-
-        speed: random(52, 72),
-
-        attackCooldown: random(.2, 1),
-
-        hitTimer: 0,
-
-        hurtTimer: 0,
-
-        knockbackX: 0,
-        knockbackY: 0,
-
-        wanderAngle: random(0, Math.PI * 2),
-
-        wanderTimer: random(1, 3),
-
-        dead: false
-    };
-}
-
-
 generateWorld();
 
-
 /* =========================================================
-   INPUT
+   COLLISIONS
 ========================================================= */
 
+function isBlocked(x, y, radius) {
+
+    for (const tree of trees) {
+
+        if (
+            Math.hypot(x - tree.x, y - tree.y) <
+            radius + tree.radius * .65
+        ) {
+            return true;
+        }
+    }
+
+    for (const rock of rocks) {
+
+        if (
+            Math.hypot(x - rock.x, y - rock.y) <
+            radius + rock.radius * .7
+        ) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/* =========================================================
+   MOVEMENT
+========================================================= */
+
+const keys = {};
+
 window.addEventListener("keydown", e => {
+
     keys[e.key.toLowerCase()] = true;
 
     if (
-        e.key === " " ||
-        e.key.toLowerCase() === "j"
+        e.key.toLowerCase() === "i" ||
+        e.key.toLowerCase() === "b"
     ) {
+        toggleInventory();
+    }
+
+    if (e.key === " " || e.key.toLowerCase() === "j") {
         attack();
     }
 
     if (
-        e.key.toLowerCase() === "shift" ||
+        e.key === "Shift" ||
         e.key.toLowerCase() === "k"
     ) {
         dodge();
@@ -345,109 +336,247 @@ window.addEventListener("keydown", e => {
     }
 });
 
-
 window.addEventListener("keyup", e => {
     keys[e.key.toLowerCase()] = false;
 });
 
-
-/* =========================================================
-   MOVEMENT
-========================================================= */
-
-let joystickInput = {
+let joystick = {
+    active: false,
     x: 0,
     y: 0
 };
 
+const joystickElement = document.getElementById("joystick");
+const joystickKnob = document.getElementById("joystickKnob");
 
-function getMovement() {
+function updateJoystick(clientX, clientY) {
 
-    let x = 0;
-    let y = 0;
+    const rect = joystickElement.getBoundingClientRect();
 
-    if (keys["w"] || keys["arrowup"]) y -= 1;
-    if (keys["s"] || keys["arrowdown"]) y += 1;
-    if (keys["a"] || keys["arrowleft"]) x -= 1;
-    if (keys["d"] || keys["arrowright"]) x += 1;
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
 
-    x += joystickInput.x;
-    y += joystickInput.y;
+    let dx = clientX - centerX;
+    let dy = clientY - centerY;
 
-    const length = Math.hypot(x, y);
+    const max = rect.width / 2 - 28;
 
-    if (length > 1) {
-        x /= length;
-        y /= length;
+    const len = Math.hypot(dx, dy);
+
+    if (len > max) {
+
+        dx = dx / len * max;
+        dy = dy / len * max;
     }
 
-    return { x, y };
+    joystick.x = dx / max;
+    joystick.y = dy / max;
+
+    joystickKnob.style.transform =
+        `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
 }
 
+joystickElement.addEventListener("pointerdown", e => {
+
+    joystick.active = true;
+
+    joystickElement.setPointerCapture(e.pointerId);
+
+    updateJoystick(e.clientX, e.clientY);
+});
+
+joystickElement.addEventListener("pointermove", e => {
+
+    if (joystick.active) {
+        updateJoystick(e.clientX, e.clientY);
+    }
+});
+
+joystickElement.addEventListener("pointerup", resetJoystick);
+joystickElement.addEventListener("pointercancel", resetJoystick);
+
+function resetJoystick() {
+
+    joystick.active = false;
+    joystick.x = 0;
+    joystick.y = 0;
+
+    joystickKnob.style.transform =
+        "translate(-50%, -50%)";
+}
 
 /* =========================================================
-   COLLISION
+   INVENTORY
 ========================================================= */
 
-function collidesWithWorld(x, y, radius) {
+const inventoryPanel =
+    document.getElementById("inventoryPanel");
 
-    for (const tree of trees) {
+const inventoryButton =
+    document.getElementById("inventoryButton");
 
-        const d = Math.hypot(
-            x - tree.x,
-            y - tree.y
-        );
+const closeInventory =
+    document.getElementById("closeInventory");
 
-        if (d < radius + tree.radius * .7) {
-            return true;
+function toggleInventory() {
+
+    inventoryOpen = !inventoryOpen;
+
+    inventoryPanel.classList.toggle(
+        "open",
+        inventoryOpen
+    );
+
+    updateInventoryUI();
+}
+
+function updateInventoryUI() {
+
+    document.getElementById("invWood").textContent =
+        resources.wood;
+
+    document.getElementById("invStone").textContent =
+        resources.stone;
+
+    document.getElementById("invMushroom").textContent =
+        resources.mushroom;
+
+    document.getElementById("invStrange").textContent =
+        resources.strange;
+}
+
+inventoryButton.addEventListener(
+    "click",
+    toggleInventory
+);
+
+closeInventory.addEventListener(
+    "click",
+    toggleInventory
+);
+
+inventoryPanel.addEventListener("pointerdown", e => {
+
+    if (e.target === inventoryPanel) {
+        toggleInventory();
+    }
+});
+
+/* =========================================================
+   CRAFTING
+========================================================= */
+
+const recipes = {
+
+    campfire: {
+        name: "Fogueira",
+        costs: {
+            wood: 5,
+            stone: 3
+        }
+    },
+
+    axe: {
+        name: "Machado",
+        costs: {
+            wood: 8,
+            stone: 4
+        }
+    },
+
+    sword: {
+        name: "Espada simples",
+        costs: {
+            wood: 5,
+            stone: 8
+        }
+    },
+
+    potion: {
+        name: "Poção simples",
+        costs: {
+            mushroom: 2,
+            wood: 1
+        }
+    }
+};
+
+document.querySelectorAll(".craft-button")
+    .forEach(button => {
+
+        button.addEventListener("click", () => {
+
+            const recipe =
+                recipes[button.dataset.recipe];
+
+            craft(button.dataset.recipe, recipe);
+        });
+    });
+
+function hasResources(costs) {
+
+    for (const key in costs) {
+
+        if (resources[key] < costs[key]) {
+            return false;
         }
     }
 
+    return true;
+}
 
-    for (const rock of rocks) {
+function craft(id, recipe) {
 
-        const d = Math.hypot(
-            x - rock.x,
-            y - rock.y
+    if (!hasResources(recipe.costs)) {
+
+        showMessage(
+            "Você não possui recursos suficientes."
         );
 
-        if (d < radius + rock.radius) {
-            return true;
-        }
+        return;
     }
 
+    for (const key in recipe.costs) {
 
-    return false;
-}
+        resources[key] -= recipe.costs[key];
+    }
 
+    craftedItems[id]++;
 
-function movePlayer(dx, dy) {
+    updateInventoryUI();
+    updateHUD();
 
-    let nx = player.x + dx;
-    let ny = player.y + dy;
-
-    nx = clamp(
-        nx,
-        player.radius,
-        world.width - player.radius
+    showMessage(
+        `${recipe.name} fabricado.`
     );
 
-    ny = clamp(
-        ny,
-        player.radius,
-        world.height - player.radius
-    );
-
-
-    if (!collidesWithWorld(nx, player.y, player.radius)) {
-        player.x = nx;
-    }
-
-    if (!collidesWithWorld(player.x, ny, player.radius)) {
-        player.y = ny;
-    }
+    createCraftParticles();
 }
 
+/* =========================================================
+   CRAFT PARTICLES
+========================================================= */
+
+function createCraftParticles() {
+
+    for (let i = 0; i < 18; i++) {
+
+        particles.push({
+            x: player.x + random(-15, 15),
+            y: player.y + random(-20, 10),
+
+            vx: random(-50, 50),
+            vy: random(-80, -20),
+
+            life: random(.4, .8),
+            maxLife: .8,
+
+            size: random(2, 5),
+
+            type: "craft"
+        });
+    }
+}
 
 /* =========================================================
    ATTACK
@@ -455,71 +584,68 @@ function movePlayer(dx, dy) {
 
 function attack() {
 
-    if (player.attackCooldown > 0) return;
-    if (player.dodgeTimer > 0) return;
-    if (player.stamina < 12) return;
+    if (inventoryOpen) return;
 
-    player.attackCooldown = .42;
-    player.attackTimer = .18;
-    player.attacking = true;
+    if (player.attackCooldown > 0) return;
+
+    if (player.stamina < 12) {
+
+        showMessage("Sem energia.");
+
+        return;
+    }
 
     player.stamina -= 12;
 
-    camera.shake = Math.max(camera.shake, 4);
+    player.attackCooldown = .45;
+    player.attackTimer = .16;
 
-    spawnAttackParticles();
+    camera.shake = 5;
 
     for (const enemy of enemies) {
 
-        if (enemy.dead) continue;
+        if (enemy.hp <= 0) continue;
 
         const dx = enemy.x - player.x;
         const dy = enemy.y - player.y;
 
-        const d = Math.hypot(dx, dy);
+        const dist = Math.hypot(dx, dy);
 
-        if (d > 85) continue;
-
-        const nx = dx / Math.max(d, 1);
-        const ny = dy / Math.max(d, 1);
+        if (dist > 75) continue;
 
         const dot =
-            nx * player.dirX +
-            ny * player.dirY;
+            (dx / Math.max(dist, 1)) * player.dirX +
+            (dy / Math.max(dist, 1)) * player.dirY;
 
-        if (dot > .15) {
+        if (dot < .15) continue;
 
-            enemy.hp -= 25;
+        enemy.hp -= 25;
 
-            enemy.hurtTimer = .22;
+        enemy.hitTimer = .2;
 
-            enemy.knockbackX = nx * 230;
-            enemy.knockbackY = ny * 230;
+        enemy.x += player.dirX * 25;
+        enemy.y += player.dirY * 25;
 
-            spawnHitParticles(enemy.x, enemy.y);
+        createHitParticles(
+            enemy.x,
+            enemy.y
+        );
 
-            camera.shake = Math.max(
-                camera.shake,
-                8
+        if (enemy.hp <= 0) {
+
+            resources.wood += 1;
+
+            showMessage(
+                "Goblin derrotado. +1 madeira"
             );
 
-            if (enemy.hp <= 0) {
-
-                enemy.dead = true;
-
-                spawnDeathParticles(
-                    enemy.x,
-                    enemy.y
-                );
-
-                showMessage(
-                    "Goblin derrotado."
-                );
-            }
+            createDeathParticles(
+                enemy.x,
+                enemy.y
+            );
         }
     }
 }
-
 
 /* =========================================================
    DODGE
@@ -527,37 +653,253 @@ function attack() {
 
 function dodge() {
 
+    if (inventoryOpen) return;
+
     if (player.dodgeCooldown > 0) return;
-    if (player.stamina < 22) return;
 
-    const movement = getMovement();
+    if (player.stamina < 25) {
 
-    let dx = movement.x;
-    let dy = movement.y;
+        showMessage("Sem energia.");
 
-    if (Math.hypot(dx, dy) < .1) {
-
-        dx = player.dirX;
-        dy = player.dirY;
+        return;
     }
 
-    player.stamina -= 22;
+    player.stamina -= 25;
 
-    player.dodgeTimer = .18;
-    player.dodgeCooldown = .65;
-    player.invulnerable = .22;
+    player.dodgeCooldown = .7;
+    player.dodgeTimer = .22;
+    player.invulnerable = .25;
 
-    player.dirX = dx;
-    player.dirY = dy;
+    camera.shake = 3;
 
-    spawnDodgeParticles();
+    createDodgeParticles();
+}
 
-    camera.shake = Math.max(
-        camera.shake,
-        3
+/* =========================================================
+   INTERACTION
+========================================================= */
+
+function interact() {
+
+    if (inventoryOpen) return;
+
+    let nearest = null;
+    let nearestDist = Infinity;
+
+    for (const mushroom of mushrooms) {
+
+        if (mushroom.collected) continue;
+
+        const d = distance(player, mushroom);
+
+        if (d < nearestDist) {
+
+            nearest = mushroom;
+            nearestDist = d;
+        }
+    }
+
+    for (const wood of woods) {
+
+        if (wood.collected) continue;
+
+        const d = distance(player, wood);
+
+        if (d < nearestDist) {
+
+            nearest = wood;
+            nearestDist = d;
+        }
+    }
+
+    for (const stone of stones) {
+
+        if (stone.collected) continue;
+
+        const d = distance(player, stone);
+
+        if (d < nearestDist) {
+
+            nearest = stone;
+            nearestDist = d;
+        }
+    }
+
+    if (!nearest || nearestDist > 55) {
+
+        if (
+            Math.hypot(
+                player.x - shelter.x,
+                player.y - shelter.y
+            ) < 180
+        ) {
+
+            showMessage(
+                "Abrigo: local seguro."
+            );
+
+            return;
+        }
+
+        showMessage(
+            "Não há nada para interagir aqui."
+        );
+
+        return;
+    }
+
+    collectObject(nearest);
+}
+
+/* =========================================================
+   COLLECTION
+========================================================= */
+
+function collectObject(object) {
+
+    if (object.collected) return;
+
+    object.collected = true;
+
+    if (mushrooms.includes(object)) {
+
+        if (object.strange) {
+
+            resources.strange++;
+
+            showMessage(
+                "Você encontrou um cogumelo estranho."
+            );
+
+            if (questStage === 0) {
+
+                questStage = 1;
+            }
+
+        } else {
+
+            resources.mushroom++;
+
+            showMessage(
+                "Cogumelo coletado."
+            );
+        }
+    }
+
+    else if (woods.includes(object)) {
+
+        resources.wood++;
+
+        showMessage(
+            "Madeira coletada. +1"
+        );
+    }
+
+    else if (stones.includes(object)) {
+
+        resources.stone++;
+
+        showMessage(
+            "Pedra coletada. +1"
+        );
+    }
+
+    updateHUD();
+    updateInventoryUI();
+
+    createCollectionParticles(
+        object.x,
+        object.y
     );
 }
 
+/* =========================================================
+   PARTICLES
+========================================================= */
+
+function createCollectionParticles(x, y) {
+
+    for (let i = 0; i < 10; i++) {
+
+        particles.push({
+            x,
+            y,
+
+            vx: random(-25, 25),
+            vy: random(-70, -20),
+
+            life: random(.4, .7),
+            maxLife: .7,
+
+            size: random(2, 4),
+
+            type: "collection"
+        });
+    }
+}
+
+function createHitParticles(x, y) {
+
+    for (let i = 0; i < 10; i++) {
+
+        particles.push({
+            x,
+            y,
+
+            vx: random(-100, 100),
+            vy: random(-100, 30),
+
+            life: random(.2, .45),
+            maxLife: .45,
+
+            size: random(2, 5),
+
+            type: "hit"
+        });
+    }
+}
+
+function createDeathParticles(x, y) {
+
+    for (let i = 0; i < 25; i++) {
+
+        particles.push({
+            x,
+            y,
+
+            vx: random(-120, 120),
+            vy: random(-130, 80),
+
+            life: random(.4, .9),
+            maxLife: .9,
+
+            size: random(2, 6),
+
+            type: "death"
+        });
+    }
+}
+
+function createDodgeParticles() {
+
+    for (let i = 0; i < 12; i++) {
+
+        particles.push({
+            x: player.x,
+            y: player.y,
+
+            vx: random(-60, 60),
+            vy: random(-60, 60),
+
+            life: random(.2, .45),
+            maxLife: .45,
+
+            size: random(2, 5),
+
+            type: "dodge"
+        });
+    }
+}
 
 /* =========================================================
    DAMAGE
@@ -566,161 +908,424 @@ function dodge() {
 function damagePlayer(amount, enemy) {
 
     if (player.invulnerable > 0) return;
-    if (player.dodgeTimer > 0) return;
 
     player.hp -= amount;
 
-    player.invulnerable = .65;
     player.hurtTimer = .25;
 
-    damageFlash.style.opacity = ".8";
+    camera.shake = 10;
+
+    document.getElementById(
+        "damageFlash"
+    ).style.opacity = "1";
 
     setTimeout(() => {
-        damageFlash.style.opacity = "0";
-    }, 90);
 
-    camera.shake = Math.max(
-        camera.shake,
-        12
-    );
+        document.getElementById(
+            "damageFlash"
+        ).style.opacity = "0";
 
-    const dx = player.x - enemy.x;
-    const dy = player.y - enemy.y;
+    }, 100);
 
-    const d = Math.max(
-        Math.hypot(dx, dy),
-        1
-    );
+    if (enemy) {
 
-    movePlayer(
-        dx / d * 35,
-        dy / d * 35
-    );
+        const dx = player.x - enemy.x;
+        const dy = player.y - enemy.y;
 
-    spawnHitParticles(
-        player.x,
-        player.y,
-        true
-    );
+        const len = Math.hypot(dx, dy) || 1;
+
+        player.x += dx / len * 30;
+        player.y += dy / len * 30;
+    }
 
     if (player.hp <= 0) {
-        respawnPlayer();
-    }
-}
 
+        player.hp = player.maxHp;
+        player.stamina = player.maxStamina;
 
-/* =========================================================
-   RESPAWN
-========================================================= */
+        player.x = shelter.x;
+        player.y = shelter.y;
 
-function respawnPlayer() {
-
-    player.x = shelter.x;
-    player.y = shelter.y + 50;
-
-    player.hp = player.maxHp;
-    player.stamina = player.maxStamina;
-
-    showMessage(
-        "Você acordou novamente no abrigo."
-    );
-}
-
-
-/* =========================================================
-   PARTICLES
-========================================================= */
-
-function addParticle(x, y, options = {}) {
-
-    particles.push({
-        x,
-        y,
-
-        vx: options.vx ?? random(-30, 30),
-        vy: options.vy ?? random(-30, 30),
-
-        life: options.life ?? .5,
-        maxLife: options.life ?? .5,
-
-        size: options.size ?? random(2, 5),
-
-        type: options.type ?? "dust"
-    });
-}
-
-
-function spawnHitParticles(x, y, playerHit = false) {
-
-    for (let i = 0; i < 10; i++) {
-
-        addParticle(x, y, {
-            vx: random(-90, 90),
-            vy: random(-90, 90),
-            life: random(.2, .45),
-            size: random(2, 5),
-            type: playerHit ? "blood" : "impact"
-        });
-    }
-}
-
-
-function spawnDeathParticles(x, y) {
-
-    for (let i = 0; i < 22; i++) {
-
-        addParticle(x, y, {
-            vx: random(-120, 120),
-            vy: random(-120, 120),
-            life: random(.35, .8),
-            size: random(2, 6),
-            type: "blood"
-        });
-    }
-}
-
-
-function spawnAttackParticles() {
-
-    const x =
-        player.x +
-        player.dirX * 38;
-
-    const y =
-        player.y +
-        player.dirY * 38;
-
-    for (let i = 0; i < 7; i++) {
-
-        addParticle(x, y, {
-            vx: player.dirX * random(40, 120) + random(-30, 30),
-            vy: player.dirY * random(40, 120) + random(-30, 30),
-            life: random(.12, .25),
-            size: random(2, 4),
-            type: "slash"
-        });
-    }
-}
-
-
-function spawnDodgeParticles() {
-
-    for (let i = 0; i < 14; i++) {
-
-        addParticle(
-            player.x - player.dirX * 15,
-            player.y - player.dirY * 15,
-            {
-                vx: random(-25, 25),
-                vy: random(-25, 25),
-                life: random(.25, .55),
-                size: random(2, 5),
-                type: "dust"
-            }
+        showMessage(
+            "Você caiu. A floresta trouxe você de volta ao abrigo."
         );
     }
 }
 
+/* =========================================================
+   ENEMIES
+========================================================= */
+
+function updateEnemies(dt) {
+
+    for (const enemy of enemies) {
+
+        if (enemy.hp <= 0) continue;
+
+        enemy.hitTimer =
+            Math.max(0, enemy.hitTimer - dt);
+
+        enemy.attackCooldown =
+            Math.max(0, enemy.attackCooldown - dt);
+
+        const dx = player.x - enemy.x;
+        const dy = player.y - enemy.y;
+
+        const dist = Math.hypot(dx, dy);
+
+        if (dist < 420) {
+
+            if (dist > 48) {
+
+                const len = Math.max(dist, 1);
+
+                const mx = dx / len;
+                const my = dy / len;
+
+                const speed = enemy.speed;
+
+                const nx =
+                    enemy.x + mx * speed * dt;
+
+                const ny =
+                    enemy.y + my * speed * dt;
+
+                if (!isBlocked(nx, enemy.y, enemy.radius)) {
+                    enemy.x = nx;
+                }
+
+                if (!isBlocked(enemy.x, ny, enemy.radius)) {
+                    enemy.y = ny;
+                }
+            }
+
+            else if (
+                enemy.attackCooldown <= 0
+            ) {
+
+                damagePlayer(10, enemy);
+
+                enemy.attackCooldown = 1.3;
+            }
+
+        } else {
+
+            enemy.wanderTimer -= dt;
+
+            if (enemy.wanderTimer <= 0) {
+
+                enemy.wanderTimer =
+                    random(1.5, 4);
+
+                enemy.dirX =
+                    random(-1, 1);
+
+                enemy.dirY =
+                    random(-1, 1);
+
+                const len = Math.hypot(
+                    enemy.dirX,
+                    enemy.dirY
+                ) || 1;
+
+                enemy.dirX /= len;
+                enemy.dirY /= len;
+            }
+
+            const nx =
+                enemy.x +
+                enemy.dirX *
+                enemy.speed *
+                .35 *
+                dt;
+
+            const ny =
+                enemy.y +
+                enemy.dirY *
+                enemy.speed *
+                .35 *
+                dt;
+
+            if (!isBlocked(nx, enemy.y, enemy.radius)) {
+                enemy.x = nx;
+            }
+
+            if (!isBlocked(enemy.x, ny, enemy.radius)) {
+                enemy.y = ny;
+            }
+        }
+    }
+}
+
+/* =========================================================
+   PLAYER UPDATE
+========================================================= */
+
+function updatePlayer(dt) {
+
+    player.attackCooldown =
+        Math.max(0, player.attackCooldown - dt);
+
+    player.attackTimer =
+        Math.max(0, player.attackTimer - dt);
+
+    player.dodgeCooldown =
+        Math.max(0, player.dodgeCooldown - dt);
+
+    player.dodgeTimer =
+        Math.max(0, player.dodgeTimer - dt);
+
+    player.invulnerable =
+        Math.max(0, player.invulnerable - dt);
+
+    player.hurtTimer =
+        Math.max(0, player.hurtTimer - dt);
+
+    if (inventoryOpen) return;
+
+    let dx = 0;
+    let dy = 0;
+
+    if (keys["w"] || keys["arrowup"]) {
+        dy -= 1;
+    }
+
+    if (keys["s"] || keys["arrowdown"]) {
+        dy += 1;
+    }
+
+    if (keys["a"] || keys["arrowleft"]) {
+        dx -= 1;
+    }
+
+    if (keys["d"] || keys["arrowright"]) {
+        dx += 1;
+    }
+
+    if (
+        joystick.active ||
+        Math.abs(joystick.x) > .05 ||
+        Math.abs(joystick.y) > .05
+    ) {
+
+        dx = joystick.x;
+        dy = joystick.y;
+    }
+
+    const len = Math.hypot(dx, dy);
+
+    if (len > .01) {
+
+        dx /= len;
+        dy /= len;
+
+        player.dirX = dx;
+        player.dirY = dy;
+
+        let speed = player.speed;
+
+        if (player.dodgeTimer > 0) {
+            speed *= 3.4;
+        }
+
+        const moving = true;
+
+        if (
+            moving &&
+            player.dodgeTimer <= 0
+        ) {
+
+            player.stamina = Math.min(
+                player.maxStamina,
+                player.stamina + 22 * dt
+            );
+        }
+
+        const nx =
+            player.x +
+            dx * speed * dt;
+
+        const ny =
+            player.y +
+            dy * speed * dt;
+
+        if (
+            nx > player.radius &&
+            nx < world.width - player.radius &&
+            !isBlocked(nx, player.y, player.radius)
+        ) {
+            player.x = nx;
+        }
+
+        if (
+            ny > player.radius &&
+            ny < world.height - player.radius &&
+            !isBlocked(player.x, ny, player.radius)
+        ) {
+            player.y = ny;
+        }
+
+    } else {
+
+        player.stamina = Math.min(
+            player.maxStamina,
+            player.stamina + 28 * dt
+        );
+    }
+
+    if (player.dodgeTimer > 0) {
+
+        const nx =
+            player.x +
+            player.dirX *
+            player.speed *
+            3.4 *
+            dt;
+
+        const ny =
+            player.y +
+            player.dirY *
+            player.speed *
+            3.4 *
+            dt;
+
+        if (
+            !isBlocked(nx, player.y, player.radius)
+        ) {
+            player.x = nx;
+        }
+
+        if (
+            !isBlocked(player.x, ny, player.radius)
+        ) {
+            player.y = ny;
+        }
+    }
+}
+
+/* =========================================================
+   RESOURCES
+========================================================= */
+
+function updateQuest() {
+
+    if (questStage === 0) {
+
+        document.getElementById("questText").textContent =
+            "Explore a floresta e encontre um cogumelo estranho.";
+    }
+
+    else if (questStage === 1) {
+
+        document.getElementById("questText").textContent =
+            "O cogumelo estranho está reagindo. Volte ao abrigo.";
+    }
+
+    else if (questStage === 2) {
+
+        document.getElementById("questText").textContent =
+            "O abrigo parece esconder algo. Continue explorando.";
+    }
+
+    const nearShelter =
+        Math.hypot(
+            player.x - shelter.x,
+            player.y - shelter.y
+        ) < 170;
+
+    if (
+        nearShelter &&
+        questStage === 1
+    ) {
+
+        questStage = 2;
+
+        showMessage(
+            "O abrigo parece diferente..."
+        );
+    }
+}
+
+/* =========================================================
+   DAY / NIGHT
+========================================================= */
+
+function updateWorldTime(dt) {
+
+    worldTime += dt;
+
+    const cycle = 180;
+
+    const t = (worldTime % cycle) / cycle;
+
+    if (t > .99) {
+        day++;
+    }
+}
+
+function getTimeOfDay() {
+
+    const cycle = 180;
+
+    const t = (worldTime % cycle) / cycle;
+
+    if (t < .25) {
+        return "MANHÃ";
+    }
+
+    if (t < .5) {
+        return "DIA";
+    }
+
+    if (t < .72) {
+        return "ENTARDECER";
+    }
+
+    return "NOITE";
+}
+
+function getNightAmount() {
+
+    const cycle = 180;
+
+    const t = (worldTime % cycle) / cycle;
+
+    if (t < .5) return 0;
+
+    if (t < .72) {
+        return (t - .5) / .22 * .65;
+    }
+
+    if (t < .95) {
+        return .65;
+    }
+
+    return .65 - ((t - .95) / .05) * .65;
+}
+
+/* =========================================================
+   CAMERA
+========================================================= */
+
+function updateCamera(dt) {
+
+    const smoothing = 1 - Math.pow(.001, dt);
+
+    camera.x +=
+        (player.x - camera.x) *
+        smoothing;
+
+    camera.y +=
+        (player.y - camera.y) *
+        smoothing;
+
+    camera.shake =
+        Math.max(0, camera.shake - dt * 18);
+}
+
+/* =========================================================
+   PARTICLES UPDATE
+========================================================= */
 
 function updateParticles(dt) {
 
@@ -731,8 +1336,7 @@ function updateParticles(dt) {
         p.x += p.vx * dt;
         p.y += p.vy * dt;
 
-        p.vx *= .94;
-        p.vy *= .94;
+        p.vy += 100 * dt;
 
         p.life -= dt;
 
@@ -742,891 +1346,474 @@ function updateParticles(dt) {
     }
 }
 
-
-/* =========================================================
-   ENEMIES
-========================================================= */
-
-function updateEnemies(dt) {
-
-    for (const enemy of enemies) {
-
-        if (enemy.dead) continue;
-
-        enemy.attackCooldown -= dt;
-        enemy.hitTimer -= dt;
-        enemy.hurtTimer -= dt;
-
-
-        if (enemy.hurtTimer > 0) {
-
-            enemy.x += enemy.knockbackX * dt;
-            enemy.y += enemy.knockbackY * dt;
-
-            enemy.knockbackX *= .88;
-            enemy.knockbackY *= .88;
-
-            continue;
-        }
-
-
-        const dx = player.x - enemy.x;
-        const dy = player.y - enemy.y;
-
-        const d = Math.hypot(dx, dy);
-
-
-        if (d < 430) {
-
-            const nx = dx / Math.max(d, 1);
-            const ny = dy / Math.max(d, 1);
-
-            if (d > 43) {
-
-                const speed =
-                    enemy.speed *
-                    (d < 180 ? 1.15 : 1);
-
-                const oldX = enemy.x;
-                const oldY = enemy.y;
-
-                enemy.x += nx * speed * dt;
-                enemy.y += ny * speed * dt;
-
-                if (
-                    collidesWithWorld(
-                        enemy.x,
-                        enemy.y,
-                        enemy.radius
-                    )
-                ) {
-                    enemy.x = oldX;
-                    enemy.y = oldY;
-                }
-            }
-            else {
-
-                if (enemy.attackCooldown <= 0) {
-
-                    enemy.attackCooldown = 1.15;
-
-                    damagePlayer(
-                        10,
-                        enemy
-                    );
-                }
-            }
-        }
-        else {
-
-            enemy.wanderTimer -= dt;
-
-            if (enemy.wanderTimer <= 0) {
-
-                enemy.wanderTimer =
-                    random(1, 3);
-
-                enemy.wanderAngle =
-                    random(0, Math.PI * 2);
-            }
-
-            enemy.x +=
-                Math.cos(enemy.wanderAngle) *
-                enemy.speed *
-                .2 *
-                dt;
-
-            enemy.y +=
-                Math.sin(enemy.wanderAngle) *
-                enemy.speed *
-                .2 *
-                dt;
-        }
-
-
-        enemy.x = clamp(
-            enemy.x,
-            enemy.radius,
-            world.width - enemy.radius
-        );
-
-        enemy.y = clamp(
-            enemy.y,
-            enemy.radius,
-            world.height - enemy.radius
-        );
-    }
-}
-
-
-/* =========================================================
-   COLLECTION
-========================================================= */
-
-function collectResources() {
-
-    for (const item of woods) {
-
-        if (item.collected) continue;
-
-        if (
-            Math.hypot(
-                player.x - item.x,
-                player.y - item.y
-            ) < 35
-        ) {
-
-            item.collected = true;
-
-            resources.wood++;
-
-            showMessage(
-                "Madeira coletada."
-            );
-        }
-    }
-
-
-    for (const item of stones) {
-
-        if (item.collected) continue;
-
-        if (
-            Math.hypot(
-                player.x - item.x,
-                player.y - item.y
-            ) < 35
-        ) {
-
-            item.collected = true;
-
-            resources.stone++;
-
-            showMessage(
-                "Pedra coletada."
-            );
-        }
-    }
-
-
-    for (const mushroom of mushrooms) {
-
-        if (mushroom.collected) continue;
-
-        if (
-            Math.hypot(
-                player.x - mushroom.x,
-                player.y - mushroom.y
-            ) < 32
-        ) {
-
-            mushroom.collected = true;
-
-            resources.mushroom++;
-
-            if (
-                mushroom.strange &&
-                questStage === 0
-            ) {
-
-                questStage = 1;
-
-                questText.textContent =
-                    "O cogumelo estranho está reagindo. Volte ao abrigo.";
-
-                showMessage(
-                    "Você encontrou algo estranho..."
-                );
-            }
-            else {
-
-                showMessage(
-                    "Cogumelo coletado."
-                );
-            }
-        }
-    }
-}
-
-
-/* =========================================================
-   INTERACTION
-========================================================= */
-
-function interact() {
-
-    const dShelter =
-        Math.hypot(
-            player.x - shelter.x,
-            player.y - shelter.y
-        );
-
-    const dFire =
-        Math.hypot(
-            player.x - campfire.x,
-            player.y - campfire.y
-        );
-
-
-    if (dShelter < 180) {
-
-        showMessage(
-            "Este abrigo pode ser seu refúgio."
-        );
-
-        return;
-    }
-
-
-    if (dFire < 100) {
-
-        showMessage(
-            "O fogo mantém a escuridão afastada."
-        );
-
-        return;
-    }
-}
-
-
 /* =========================================================
    MESSAGE
 ========================================================= */
 
 function showMessage(text) {
 
-    message = text;
+    messageText = text;
     messageTimer = 2.5;
+
+    const element =
+        document.getElementById("interaction");
+
+    element.textContent = text;
+    element.classList.add("show");
 }
 
+function updateMessage(dt) {
+
+    if (messageTimer > 0) {
+
+        messageTimer -= dt;
+
+        if (messageTimer <= 0) {
+
+            document
+                .getElementById("interaction")
+                .classList.remove("show");
+        }
+    }
+}
 
 /* =========================================================
-   DAY / NIGHT
+   HUD
 ========================================================= */
 
-function updateDayNight(dt) {
+function updateHUD() {
 
-    worldTime += dt;
-
-    if (worldTime >= DAY_LENGTH) {
-
-        worldTime = 0;
-        day++;
-
-        showMessage(
-            `O dia ${day} começou.`
-        );
-    }
-
-
-    const ratio =
-        worldTime / DAY_LENGTH;
-
-    let phase = "";
-
-    if (ratio < .25) {
-        phase = "MANHÃ";
-    }
-    else if (ratio < .55) {
-        phase = "DIA";
-    }
-    else if (ratio < .72) {
-        phase = "ENTARDECER";
-    }
-    else {
-        phase = "NOITE";
-    }
-
-    dayText.textContent =
-        `DIA ${day} — ${phase}`;
-}
-
-
-function getNightAmount() {
-
-    const ratio =
-        worldTime / DAY_LENGTH;
-
-    if (ratio < .55) return 0;
-
-    if (ratio < .72) {
-
-        return (
-            (ratio - .55) /
-            .17
-        ) * .65;
-    }
-
-    return .72;
-}
-
-
-/* =========================================================
-   PLAYER UPDATE
-========================================================= */
-
-function updatePlayer(dt) {
-
-    player.attackCooldown -= dt;
-    player.dodgeCooldown -= dt;
-    player.invulnerable -= dt;
-    player.hurtTimer -= dt;
-
-    if (player.attackTimer > 0) {
-
-        player.attackTimer -= dt;
-
-        if (player.attackTimer <= 0) {
-            player.attacking = false;
-        }
-    }
-
-
-    if (player.dodgeTimer > 0) {
-
-        player.dodgeTimer -= dt;
-
-        movePlayer(
-            player.dirX *
-            player.speed *
-            3.8 *
-            dt,
-
-            player.dirY *
-            player.speed *
-            3.8 *
-            dt
+    const hp =
+        Math.max(
+            0,
+            player.hp / player.maxHp * 100
         );
 
-        return;
-    }
-
-
-    const movement = getMovement();
-
-    const moving =
-        Math.hypot(
-            movement.x,
-            movement.y
-        ) > .05;
-
-
-    if (moving) {
-
-        player.dirX = movement.x;
-        player.dirY = movement.y;
-
-        const speed =
-            player.speed *
-            (player.stamina < 8 ? .55 : 1);
-
-        movePlayer(
-            movement.x * speed * dt,
-            movement.y * speed * dt
+    const stamina =
+        Math.max(
+            0,
+            player.stamina /
+            player.maxStamina * 100
         );
 
-        player.stamina -= 8 * dt;
+    document.getElementById("hpBar")
+        .style.width = hp + "%";
 
-        if (player.stamina < 0) {
-            player.stamina = 0;
-        }
-    }
-    else {
+    document.getElementById("staminaBar")
+        .style.width = stamina + "%";
 
-        player.stamina += 18 * dt;
+    document.getElementById("hpText")
+        .textContent =
+        `${Math.ceil(player.hp)} / ${player.maxHp}`;
 
-        if (player.stamina > player.maxStamina) {
-            player.stamina = player.maxStamina;
-        }
-    }
+    document.getElementById("staminaText")
+        .textContent =
+        `${Math.ceil(player.stamina)} / ${player.maxStamina}`;
+
+    document.getElementById("dayText")
+        .textContent =
+        `DIA ${day} • ${getTimeOfDay()}`;
+
+    document.getElementById("resourceText")
+        .textContent =
+        `🪵 ${resources.wood}   🪨 ${resources.stone}   🍄 ${resources.mushroom}`;
 }
 
-
 /* =========================================================
-   CAMERA
-========================================================= */
-
-function updateCamera(dt) {
-
-    const smoothing =
-        1 - Math.pow(.001, dt);
-
-    camera.x +=
-        (player.x - camera.x) *
-        smoothing;
-
-    camera.y +=
-        (player.y - camera.y) *
-        smoothing;
-
-
-    if (camera.shake > 0) {
-
-        camera.shake *= .88;
-
-        if (camera.shake < .1) {
-            camera.shake = 0;
-        }
-    }
-
-
-    camera.x = clamp(
-        camera.x,
-        W / 2,
-        world.width - W / 2
-    );
-
-    camera.y = clamp(
-        camera.y,
-        H / 2,
-        world.height - H / 2
-    );
-}
-
-
-/* =========================================================
-   DRAW HELPERS
+   WORLD DRAWING
 ========================================================= */
 
 function worldToScreen(x, y) {
 
-    let sx =
-        (x - camera.x) *
-        camera.zoom +
-        W / 2;
-
-    let sy =
-        (y - camera.y) *
-        camera.zoom +
-        H / 2;
-
-
-    if (camera.shake > 0) {
-
-        sx += random(
-            -camera.shake,
-            camera.shake
-        );
-
-        sy += random(
-            -camera.shake,
-            camera.shake
-        );
-    }
-
-    return { x: sx, y: sy };
+    return {
+        x: x - camera.x + W / 2,
+        y: y - camera.y + H / 2
+    };
 }
-
-
-/* =========================================================
-   GROUND
-========================================================= */
 
 function drawGround() {
 
-    ctx.fillStyle = "#263026";
-    ctx.fillRect(0, 0, W, H);
-
-
-    const tileSize = 80;
+    const tile = 64;
 
     const startX =
         Math.floor(
-            (camera.x - W / 2) /
-            tileSize
-        ) * tileSize;
+            (camera.x - W / 2) / tile
+        ) * tile;
 
     const startY =
         Math.floor(
-            (camera.y - H / 2) /
-            tileSize
-        ) * tileSize;
-
+            (camera.y - H / 2) / tile
+        ) * tile;
 
     for (
         let x = startX;
-        x < camera.x + W / 2 + tileSize;
-        x += tileSize
+        x < camera.x + W / 2 + tile;
+        x += tile
     ) {
 
         for (
             let y = startY;
-            y < camera.y + H / 2 + tileSize;
-            y += tileSize
+            y < camera.y + H / 2 + tile;
+            y += tile
         ) {
 
-            const p =
+            const screen =
                 worldToScreen(x, y);
 
-            ctx.fillStyle =
-                ((x / tileSize +
-                  y / tileSize) % 2 === 0)
-                    ? "#293329"
-                    : "#273027";
+            const variation =
+                ((x / tile + y / tile) % 3);
+
+            if (variation === 0) {
+                ctx.fillStyle = "#252b20";
+            }
+
+            else if (variation === 1) {
+                ctx.fillStyle = "#283022";
+            }
+
+            else {
+                ctx.fillStyle = "#22291e";
+            }
 
             ctx.fillRect(
-                p.x,
-                p.y,
-                tileSize,
-                tileSize
+                screen.x,
+                screen.y,
+                tile + 1,
+                tile + 1
+            );
+
+            ctx.fillStyle =
+                "rgba(20,25,18,.25)";
+
+            ctx.fillRect(
+                screen.x + 5,
+                screen.y + 12,
+                2,
+                2
             );
         }
     }
-
-
-    // pequenas folhas / marcas do chão
-
-    for (let i = 0; i < 80; i++) {
-
-        const x =
-            camera.x +
-            random(-W / 2, W / 2);
-
-        const y =
-            camera.y +
-            random(-H / 2, H / 2);
-
-        const p =
-            worldToScreen(x, y);
-
-        ctx.fillStyle =
-            "rgba(115,125,91,.18)";
-
-        ctx.fillRect(
-            p.x,
-            p.y,
-            2,
-            5
-        );
-    }
 }
-
 
 /* =========================================================
    TREES
 ========================================================= */
 
-function drawTree(tree) {
+function drawTrees() {
 
-    const p =
-        worldToScreen(
-            tree.x,
-            tree.y
+    for (const tree of trees) {
+
+        const s =
+            worldToScreen(tree.x, tree.y);
+
+        if (
+            s.x < -80 ||
+            s.x > W + 80 ||
+            s.y < -100 ||
+            s.y > H + 100
+        ) continue;
+
+        ctx.save();
+
+        ctx.translate(s.x, s.y);
+
+        ctx.fillStyle =
+            "rgba(0,0,0,.3)";
+
+        ctx.beginPath();
+        ctx.ellipse(
+            0,
+            16,
+            tree.radius * 1.3,
+            tree.radius * .55,
+            0,
+            0,
+            Math.PI * 2
+        );
+        ctx.fill();
+
+        ctx.fillStyle = "#3c2920";
+
+        ctx.fillRect(
+            -7,
+            -5,
+            14,
+            30
         );
 
-    const s = tree.scale;
+        ctx.fillStyle = "#182619";
 
-
-    // sombra
-
-    ctx.beginPath();
-
-    ctx.ellipse(
-        p.x,
-        p.y + 18 * s,
-        27 * s,
-        11 * s,
-        0,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fillStyle =
-        "rgba(0,0,0,.35)";
-
-    ctx.fill();
-
-
-    // tronco
-
-    ctx.fillStyle = "#4a3427";
-
-    ctx.fillRect(
-        p.x - 7 * s,
-        p.y - 12 * s,
-        14 * s,
-        34 * s
-    );
-
-
-    ctx.fillStyle = "#36251d";
-
-    ctx.fillRect(
-        p.x - 2 * s,
-        p.y - 8 * s,
-        4 * s,
-        28 * s
-    );
-
-
-    // copa
-
-    const gradient =
-        ctx.createRadialGradient(
-            p.x - 8,
-            p.y - 35 * s,
-            5,
-            p.x,
-            p.y - 15 * s,
-            35 * s
+        ctx.beginPath();
+        ctx.arc(
+            -12,
+            -18,
+            tree.radius * .7,
+            0,
+            Math.PI * 2
         );
+        ctx.fill();
 
-    gradient.addColorStop(
-        0,
-        "#4e674a"
-    );
+        ctx.fillStyle = "#21351f";
 
-    gradient.addColorStop(
-        1,
-        "#18261d"
-    );
+        ctx.beginPath();
+        ctx.arc(
+            12,
+            -22,
+            tree.radius * .75,
+            0,
+            Math.PI * 2
+        );
+        ctx.fill();
 
-    ctx.fillStyle = gradient;
+        ctx.fillStyle = "#294126";
 
-    ctx.beginPath();
+        ctx.beginPath();
+        ctx.arc(
+            0,
+            -38,
+            tree.radius * .65,
+            0,
+            Math.PI * 2
+        );
+        ctx.fill();
 
-    ctx.arc(
-        p.x,
-        p.y - 25 * s,
-        31 * s,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-
-
-    ctx.fillStyle =
-        "rgba(5,10,6,.35)";
-
-    ctx.beginPath();
-
-    ctx.arc(
-        p.x + 13 * s,
-        p.y - 13 * s,
-        21 * s,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
+        ctx.restore();
+    }
 }
-
 
 /* =========================================================
    ROCKS
 ========================================================= */
 
-function drawRock(rock) {
+function drawRocks() {
 
-    const p =
-        worldToScreen(
-            rock.x,
-            rock.y
+    for (const rock of rocks) {
+
+        const s =
+            worldToScreen(
+                rock.x,
+                rock.y
+            );
+
+        if (
+            s.x < -60 ||
+            s.x > W + 60 ||
+            s.y < -60 ||
+            s.y > H + 60
+        ) continue;
+
+        ctx.save();
+
+        ctx.translate(s.x, s.y);
+
+        ctx.fillStyle =
+            "rgba(0,0,0,.3)";
+
+        ctx.beginPath();
+        ctx.ellipse(
+            0,
+            7,
+            rock.radius * 1.15,
+            rock.radius * .55,
+            0,
+            0,
+            Math.PI * 2
+        );
+        ctx.fill();
+
+        ctx.fillStyle = "#51564e";
+
+        ctx.beginPath();
+        ctx.moveTo(-rock.radius, 5);
+        ctx.lineTo(-rock.radius * .6, -rock.radius);
+        ctx.lineTo(rock.radius * .4, -rock.radius * .85);
+        ctx.lineTo(rock.radius, 2);
+        ctx.lineTo(rock.radius * .4, rock.radius);
+        ctx.lineTo(-rock.radius * .7, rock.radius * .7);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = "#777b70";
+
+        ctx.beginPath();
+        ctx.moveTo(
+            -rock.radius * .5,
+            -rock.radius * .55
         );
 
-    ctx.beginPath();
+        ctx.lineTo(
+            rock.radius * .25,
+            -rock.radius * .7
+        );
 
-    ctx.ellipse(
-        p.x,
-        p.y + 5,
-        rock.radius * 1.2,
-        rock.radius * .75,
-        -.15,
-        0,
-        Math.PI * 2
-    );
+        ctx.lineTo(
+            rock.radius * .55,
+            -rock.radius * .1
+        );
 
-    ctx.fillStyle =
-        "rgba(0,0,0,.35)";
+        ctx.lineTo(
+            -rock.radius * .1,
+            -rock.radius * .25
+        );
 
-    ctx.fill();
+        ctx.closePath();
 
+        ctx.fill();
 
-    ctx.beginPath();
-
-    ctx.moveTo(
-        p.x - rock.radius,
-        p.y + 5
-    );
-
-    ctx.lineTo(
-        p.x - rock.radius * .5,
-        p.y - rock.radius * .75
-    );
-
-    ctx.lineTo(
-        p.x + rock.radius * .55,
-        p.y - rock.radius * .7
-    );
-
-    ctx.lineTo(
-        p.x + rock.radius,
-        p.y + 2
-    );
-
-    ctx.lineTo(
-        p.x + rock.radius * .3,
-        p.y + rock.radius * .7
-    );
-
-    ctx.lineTo(
-        p.x - rock.radius * .7,
-        p.y + rock.radius * .6
-    );
-
-    ctx.closePath();
-
-    ctx.fillStyle =
-        "#59605a";
-
-    ctx.fill();
-
-
-    ctx.strokeStyle =
-        "rgba(255,255,255,.08)";
-
-    ctx.stroke();
+        ctx.restore();
+    }
 }
-
 
 /* =========================================================
    MUSHROOMS
 ========================================================= */
 
-function drawMushroom(mushroom) {
+function drawMushrooms() {
 
-    if (mushroom.collected) return;
+    for (const mushroom of mushrooms) {
 
-    const p =
-        worldToScreen(
-            mushroom.x,
-            mushroom.y
-        );
+        if (mushroom.collected) continue;
 
-
-    ctx.fillStyle =
-        "#d2c9a7";
-
-    ctx.fillRect(
-        p.x - 3,
-        p.y,
-        6,
-        11
-    );
-
-
-    ctx.beginPath();
-
-    ctx.arc(
-        p.x,
-        p.y,
-        10,
-        Math.PI,
-        0
-    );
-
-    ctx.closePath();
-
-    ctx.fillStyle =
-        mushroom.strange
-            ? "#744f8d"
-            : "#a44c43";
-
-    ctx.fill();
-
-
-    ctx.fillStyle =
-        "#ddd6bd";
-
-    ctx.beginPath();
-
-    ctx.arc(
-        p.x - 3,
-        p.y - 4,
-        2,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.arc(
-        p.x + 4,
-        p.y - 2,
-        2,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-}
-
-
-/* =========================================================
-   RESOURCES
-========================================================= */
-
-function drawResources() {
-
-    for (const item of woods) {
-
-        if (item.collected) continue;
-
-        const p =
+        const s =
             worldToScreen(
-                item.x,
-                item.y
+                mushroom.x,
+                mushroom.y
             );
 
         ctx.save();
 
-        ctx.translate(
-            p.x,
-            p.y
-        );
+        ctx.translate(s.x, s.y);
 
-        ctx.rotate(.25);
-
-        ctx.fillStyle =
-            "#684733";
+        ctx.fillStyle = "#d4c4a0";
 
         ctx.fillRect(
-            -13,
-            -5,
-            26,
-            9
+            -3,
+            0,
+            6,
+            11
+        );
+
+        ctx.fillStyle =
+            mushroom.strange
+                ? "#773e80"
+                : "#8d3939";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            0,
+            0,
+            10,
+            Math.PI,
+            0
+        );
+
+        ctx.fill();
+
+        if (mushroom.strange) {
+
+            ctx.fillStyle = "#d5a6e0";
+
+            ctx.beginPath();
+
+            ctx.arc(
+                -3,
+                -3,
+                2,
+                0,
+                Math.PI * 2
+            );
+
+            ctx.arc(
+                4,
+                -5,
+                2,
+                0,
+                Math.PI * 2
+            );
+
+            ctx.fill();
+        }
+
+        ctx.restore();
+    }
+}
+
+/* =========================================================
+   RESOURCE OBJECTS
+========================================================= */
+
+function drawResources() {
+
+    for (const wood of woods) {
+
+        if (wood.collected) continue;
+
+        const s =
+            worldToScreen(
+                wood.x,
+                wood.y
+            );
+
+        ctx.save();
+
+        ctx.translate(s.x, s.y);
+
+        ctx.rotate(-.2);
+
+        ctx.fillStyle = "#6e4429";
+
+        ctx.fillRect(
+            -10,
+            -4,
+            20,
+            8
+        );
+
+        ctx.fillStyle = "#9c6c40";
+
+        ctx.fillRect(
+            -8,
+            -2,
+            16,
+            3
         );
 
         ctx.restore();
     }
 
+    for (const stone of stones) {
 
-    for (const item of stones) {
+        if (stone.collected) continue;
 
-        if (item.collected) continue;
-
-        const p =
+        const s =
             worldToScreen(
-                item.x,
-                item.y
+                stone.x,
+                stone.y
             );
+
+        ctx.save();
+
+        ctx.translate(s.x, s.y);
+
+        ctx.fillStyle = "#6e746d";
 
         ctx.beginPath();
 
-        ctx.arc(
-            p.x,
-            p.y,
-            8,
-            0,
-            Math.PI * 2
-        );
+        ctx.moveTo(-8, 4);
+        ctx.lineTo(-5, -6);
+        ctx.lineTo(4, -8);
+        ctx.lineTo(9, 1);
+        ctx.lineTo(3, 8);
+        ctx.lineTo(-6, 7);
 
-        ctx.fillStyle =
-            "#747970";
+        ctx.closePath();
 
         ctx.fill();
+
+        ctx.restore();
     }
 }
-
 
 /* =========================================================
    SHELTER
@@ -1634,82 +1821,85 @@ function drawResources() {
 
 function drawShelter() {
 
-    const p =
+    const s =
         worldToScreen(
             shelter.x,
             shelter.y
         );
 
+    ctx.save();
+
+    ctx.translate(s.x, s.y);
 
     ctx.fillStyle =
-        "rgba(0,0,0,.4)";
+        "rgba(0,0,0,.35)";
 
     ctx.fillRect(
-        p.x - 135,
-        p.y - 73,
-        270,
-        150
+        -shelter.width / 2 + 10,
+        -shelter.height / 2 + 15,
+        shelter.width,
+        shelter.height
     );
 
-
-    ctx.fillStyle =
-        "#49382c";
+    ctx.fillStyle = "#453528";
 
     ctx.fillRect(
-        p.x - 120,
-        p.y - 65,
-        240,
-        130
+        -shelter.width / 2,
+        -shelter.height / 2,
+        shelter.width,
+        shelter.height
     );
 
-
-    ctx.fillStyle =
-        "#30251e";
-
-    ctx.beginPath();
-
-    ctx.moveTo(
-        p.x - 140,
-        p.y - 65
-    );
-
-    ctx.lineTo(
-        p.x,
-        p.y - 135
-    );
-
-    ctx.lineTo(
-        p.x + 140,
-        p.y - 65
-    );
-
-    ctx.closePath();
-
-    ctx.fill();
-
-
-    ctx.fillStyle =
-        "#171713";
+    ctx.fillStyle = "#2d241e";
 
     ctx.fillRect(
-        p.x - 27,
-        p.y + 12,
-        54,
-        53
+        -shelter.width / 2 + 10,
+        -shelter.height / 2 + 10,
+        shelter.width - 20,
+        shelter.height - 20
     );
 
-
-    ctx.fillStyle =
-        "#726044";
+    ctx.fillStyle = "#624731";
 
     ctx.fillRect(
-        p.x - 6,
-        p.y + 20,
-        12,
-        45
+        -100,
+        -50,
+        200,
+        90
     );
+
+    ctx.fillStyle = "#211c17";
+
+    ctx.fillRect(
+        -30,
+        0,
+        60,
+        40
+    );
+
+    ctx.fillStyle = "#9a7849";
+
+    ctx.fillRect(
+        -5,
+        20,
+        10,
+        10
+    );
+
+    ctx.fillStyle = "#837050";
+
+    ctx.font = "12px Arial";
+
+    ctx.textAlign = "center";
+
+    ctx.fillText(
+        "ABRIGO",
+        0,
+        -72
+    );
+
+    ctx.restore();
 }
-
 
 /* =========================================================
    CAMPFIRE
@@ -1717,340 +1907,246 @@ function drawShelter() {
 
 function drawCampfire() {
 
-    const p =
+    const s =
         worldToScreen(
             campfire.x,
             campfire.y
         );
 
-
-    const pulse =
-        Math.sin(
-            performance.now() * .008
-        ) * 5;
-
-
-    // luz
-
-    const gradient =
+    const glow =
         ctx.createRadialGradient(
-            p.x,
-            p.y,
+            s.x,
+            s.y,
             5,
-            p.x,
-            p.y,
-            130 + pulse
+            s.x,
+            s.y,
+            130
         );
 
-    gradient.addColorStop(
+    glow.addColorStop(
         0,
-        "rgba(221,155,66,.18)"
+        "rgba(255,170,50,.28)"
     );
 
-    gradient.addColorStop(
+    glow.addColorStop(
         1,
-        "rgba(221,155,66,0)"
+        "rgba(255,100,20,0)"
     );
 
-    ctx.fillStyle = gradient;
+    ctx.fillStyle = glow;
 
     ctx.beginPath();
 
     ctx.arc(
-        p.x,
-        p.y,
-        135 + pulse,
+        s.x,
+        s.y,
+        130,
         0,
         Math.PI * 2
     );
 
     ctx.fill();
-
-
-    // pedras
-
-    for (let i = 0; i < 7; i++) {
-
-        const a =
-            i / 7 * Math.PI * 2;
-
-        ctx.beginPath();
-
-        ctx.arc(
-            p.x + Math.cos(a) * 25,
-            p.y + Math.sin(a) * 14,
-            6,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fillStyle =
-            "#68665c";
-
-        ctx.fill();
-    }
-
-
-    // madeira
 
     ctx.save();
 
     ctx.translate(
-        p.x,
-        p.y + 3
+        s.x,
+        s.y
     );
 
-    ctx.rotate(.3);
-
-    ctx.fillStyle =
-        "#4b2e20";
+    ctx.fillStyle = "#5d3925";
 
     ctx.fillRect(
         -20,
         -4,
         40,
-        7
+        8
     );
 
-    ctx.rotate(1.1);
+    ctx.rotate(.8);
 
     ctx.fillRect(
         -20,
         -4,
         40,
-        7
+        8
     );
+
+    ctx.rotate(-.4);
+
+    ctx.fillStyle = "#e47a22";
+
+    ctx.beginPath();
+
+    ctx.moveTo(0, -35);
+    ctx.lineTo(-17, 5);
+    ctx.lineTo(0, -3);
+    ctx.lineTo(15, 5);
+
+    ctx.closePath();
+
+    ctx.fill();
+
+    ctx.fillStyle = "#ffd36b";
+
+    ctx.beginPath();
+
+    ctx.moveTo(0, -24);
+    ctx.lineTo(-9, 4);
+    ctx.lineTo(0, -2);
+    ctx.lineTo(8, 4);
+
+    ctx.closePath();
+
+    ctx.fill();
 
     ctx.restore();
-
-
-    // fogo
-
-    ctx.beginPath();
-
-    ctx.moveTo(
-        p.x,
-        p.y - 38 - pulse * .3
-    );
-
-    ctx.quadraticCurveTo(
-        p.x - 23,
-        p.y - 9,
-        p.x - 10,
-        p.y + 5
-    );
-
-    ctx.quadraticCurveTo(
-        p.x,
-        p.y + 18,
-        p.x + 13,
-        p.y + 3
-    );
-
-    ctx.quadraticCurveTo(
-        p.x + 26,
-        p.y - 12,
-        p.x,
-        p.y - 38 - pulse * .3
-    );
-
-    ctx.fillStyle =
-        "#d07a32";
-
-    ctx.fill();
-
-
-    ctx.beginPath();
-
-    ctx.moveTo(
-        p.x,
-        p.y - 27
-    );
-
-    ctx.quadraticCurveTo(
-        p.x - 12,
-        p.y - 6,
-        p.x,
-        p.y + 4
-    );
-
-    ctx.quadraticCurveTo(
-        p.x + 12,
-        p.y - 6,
-        p.x,
-        p.y - 27
-    );
-
-    ctx.fillStyle =
-        "#e4b85d";
-
-    ctx.fill();
 }
 
-
 /* =========================================================
-   GOBLIN
+   ENEMIES
 ========================================================= */
 
-function drawGoblin(enemy) {
+function drawEnemies() {
 
-    if (enemy.dead) return;
+    for (const enemy of enemies) {
 
-    const p =
-        worldToScreen(
-            enemy.x,
-            enemy.y
+        if (enemy.hp <= 0) continue;
+
+        const s =
+            worldToScreen(
+                enemy.x,
+                enemy.y
+            );
+
+        ctx.save();
+
+        ctx.translate(
+            s.x,
+            s.y
         );
 
-
-    // sombra
-
-    ctx.beginPath();
-
-    ctx.ellipse(
-        p.x,
-        p.y + 15,
-        20,
-        8,
-        0,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fillStyle =
-        "rgba(0,0,0,.4)";
-
-    ctx.fill();
-
-
-    // corpo
-
-    ctx.fillStyle =
-        enemy.hurtTimer > 0
-            ? "#d1b2a5"
-            : "#3e5c3d";
-
-    ctx.beginPath();
-
-    ctx.ellipse(
-        p.x,
-        p.y + 5,
-        13,
-        18,
-        0,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-
-
-    // cabeça
-
-    ctx.beginPath();
-
-    ctx.arc(
-        p.x,
-        p.y - 11,
-        15,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-
-
-    // orelhas
-
-    ctx.beginPath();
-
-    ctx.moveTo(
-        p.x - 10,
-        p.y - 16
-    );
-
-    ctx.lineTo(
-        p.x - 27,
-        p.y - 24
-    );
-
-    ctx.lineTo(
-        p.x - 13,
-        p.y - 5
-    );
-
-    ctx.fill();
-
-
-    ctx.beginPath();
-
-    ctx.moveTo(
-        p.x + 10,
-        p.y - 16
-    );
-
-    ctx.lineTo(
-        p.x + 27,
-        p.y - 24
-    );
-
-    ctx.lineTo(
-        p.x + 13,
-        p.y - 5
-    );
-
-    ctx.fill();
-
-
-    // olhos
-
-    ctx.fillStyle =
-        "#d8bd67";
-
-    ctx.fillRect(
-        p.x - 7,
-        p.y - 14,
-        4,
-        4
-    );
-
-    ctx.fillRect(
-        p.x + 3,
-        p.y - 14,
-        4,
-        4
-    );
-
-
-    // barra de vida
-
-    if (enemy.hp < enemy.maxHp) {
+        if (enemy.hitTimer > 0) {
+            ctx.globalAlpha = .65;
+        }
 
         ctx.fillStyle =
-            "rgba(0,0,0,.7)";
+            "rgba(0,0,0,.35)";
+
+        ctx.beginPath();
+
+        ctx.ellipse(
+            0,
+            15,
+            18,
+            7,
+            0,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+        ctx.fillStyle = "#53623e";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            0,
+            0,
+            17,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+        ctx.fillStyle = "#333c28";
 
         ctx.fillRect(
-            p.x - 20,
-            p.y - 35,
-            40,
+            -12,
+            -14,
+            24,
+            8
+        );
+
+        ctx.fillStyle = "#d3c69a";
+
+        ctx.beginPath();
+
+        ctx.moveTo(-10, -11);
+        ctx.lineTo(-19, -20);
+        ctx.lineTo(-8, -16);
+
+        ctx.closePath();
+
+        ctx.fill();
+
+        ctx.beginPath();
+
+        ctx.moveTo(10, -11);
+        ctx.lineTo(19, -20);
+        ctx.lineTo(8, -16);
+
+        ctx.closePath();
+
+        ctx.fill();
+
+        ctx.fillStyle = "#d95b49";
+
+        ctx.fillRect(
+            -7,
+            -2,
+            4,
             4
         );
 
-        ctx.fillStyle =
-            "#a84942";
+        ctx.fillRect(
+            3,
+            -2,
+            4,
+            4
+        );
+
+        ctx.fillStyle = "#181913";
 
         ctx.fillRect(
-            p.x - 20,
-            p.y - 35,
-            40 * (
-                enemy.hp /
-                enemy.maxHp
+            -8,
+            7,
+            16,
+            4
+        );
+
+        ctx.restore();
+
+        /* barra de vida */
+
+        const hpWidth = 34;
+
+        ctx.fillStyle =
+            "rgba(0,0,0,.6)";
+
+        ctx.fillRect(
+            s.x - hpWidth / 2,
+            s.y - 31,
+            hpWidth,
+            4
+        );
+
+        ctx.fillStyle = "#8d3030";
+
+        ctx.fillRect(
+            s.x - hpWidth / 2,
+            s.y - 31,
+            hpWidth *
+            Math.max(
+                0,
+                enemy.hp / enemy.maxHp
             ),
             4
         );
     }
 }
-
 
 /* =========================================================
    PLAYER
@@ -2058,60 +2154,38 @@ function drawGoblin(enemy) {
 
 function drawPlayer() {
 
-    const p =
+    const s =
         worldToScreen(
             player.x,
             player.y
         );
 
+    ctx.save();
 
-    const dodge =
-        player.dodgeTimer > 0;
-
-    const hurt =
-        player.hurtTimer > 0;
-
-
-    // sombra
-
-    ctx.beginPath();
-
-    ctx.ellipse(
-        p.x,
-        p.y + 17,
-        21,
-        8,
-        0,
-        0,
-        Math.PI * 2
+    ctx.translate(
+        s.x,
+        s.y
     );
 
-    ctx.fillStyle =
-        "rgba(0,0,0,.45)";
-
-    ctx.fill();
-
-
-    if (dodge) {
-
-        ctx.globalAlpha = .55;
+    if (
+        player.invulnerable > 0 &&
+        Math.floor(
+            player.invulnerable * 20
+        ) % 2 === 0
+    ) {
+        ctx.globalAlpha = .45;
     }
 
-
-    // corpo
-
     ctx.fillStyle =
-        hurt
-            ? "#d7aaa2"
-            : "#485b50";
+        "rgba(0,0,0,.4)";
 
     ctx.beginPath();
 
     ctx.ellipse(
-        p.x,
-        p.y + 4,
-        14,
-        19,
+        0,
+        15,
+        17,
+        7,
         0,
         0,
         Math.PI * 2
@@ -2119,117 +2193,101 @@ function drawPlayer() {
 
     ctx.fill();
 
+    ctx.fillStyle = "#20252a";
 
-    // cabeça
+    ctx.fillRect(
+        -9,
+        0,
+        18,
+        20
+    );
 
-    ctx.fillStyle =
-        "#b79b7e";
+    ctx.fillStyle = "#b58d70";
 
     ctx.beginPath();
 
     ctx.arc(
-        p.x,
-        p.y - 15,
-        12,
+        0,
+        -9,
+        10,
         0,
         Math.PI * 2
     );
 
     ctx.fill();
 
-
-    // cabelo
-
-    ctx.fillStyle =
-        "#27211d";
+    ctx.fillStyle = "#17191c";
 
     ctx.beginPath();
 
     ctx.arc(
-        p.x,
-        p.y - 19,
-        12,
+        0,
+        -12,
+        11,
         Math.PI,
-        0
+        Math.PI * 2
     );
 
     ctx.fill();
 
-
-    // olhos
-
-    ctx.fillStyle =
-        "#d9d4b5";
+    ctx.fillStyle = "#c5a27b";
 
     ctx.fillRect(
-        p.x - 6,
-        p.y - 16,
-        3,
-        3
+        -13,
+        2,
+        6,
+        13
     );
 
     ctx.fillRect(
-        p.x + 3,
-        p.y - 16,
-        3,
-        3
+        7,
+        2,
+        6,
+        13
     );
 
-
-    // espada
-
-    if (player.attacking) {
-
-        const angle =
-            Math.atan2(
-                player.dirY,
-                player.dirX
-            );
+    if (player.attackTimer > 0) {
 
         ctx.save();
 
-        ctx.translate(
-            p.x,
-            p.y
+        ctx.rotate(
+            Math.atan2(
+                player.dirY,
+                player.dirX
+            )
         );
 
-        ctx.rotate(angle);
-
-        ctx.strokeStyle =
-            "#d6d2bd";
-
-        ctx.lineWidth = 4;
+        ctx.strokeStyle = "#d8d7c7";
+        ctx.lineWidth = 5;
+        ctx.lineCap = "round";
 
         ctx.beginPath();
 
         ctx.moveTo(
             8,
-            5
+            -2
         );
 
         ctx.lineTo(
-            55,
-            5
+            48,
+            -17
         );
 
         ctx.stroke();
 
-
-        ctx.strokeStyle =
-            "#6e4e36";
-
-        ctx.lineWidth = 5;
+        ctx.strokeStyle = "#8b6944";
+        ctx.lineWidth = 4;
 
         ctx.beginPath();
 
         ctx.moveTo(
-            3,
-            -5
+            7,
+            -1
         );
 
         ctx.lineTo(
-            3,
-            15
+            22,
+            -1
         );
 
         ctx.stroke();
@@ -2237,10 +2295,8 @@ function drawPlayer() {
         ctx.restore();
     }
 
-
-    ctx.globalAlpha = 1;
+    ctx.restore();
 }
-
 
 /* =========================================================
    PARTICLES DRAW
@@ -2256,29 +2312,31 @@ function drawParticles() {
                 p.y
             );
 
-        const alpha =
-            clamp(
-                p.life / p.maxLife,
+        ctx.globalAlpha =
+            Math.max(
                 0,
-                1
+                p.life / p.maxLife
             );
 
-        ctx.globalAlpha = alpha;
+        if (p.type === "hit") {
+            ctx.fillStyle = "#d5b29a";
+        }
 
+        else if (p.type === "death") {
+            ctx.fillStyle = "#71835a";
+        }
 
-        if (p.type === "blood") {
-            ctx.fillStyle = "#8e3835";
+        else if (p.type === "dodge") {
+            ctx.fillStyle = "#b9b39b";
         }
-        else if (p.type === "impact") {
-            ctx.fillStyle = "#d5c7a1";
+
+        else if (p.type === "craft") {
+            ctx.fillStyle = "#d6bd70";
         }
-        else if (p.type === "slash") {
-            ctx.fillStyle = "#e5dfc7";
-        }
+
         else {
-            ctx.fillStyle = "#7d806c";
+            ctx.fillStyle = "#c7b77a";
         }
-
 
         ctx.beginPath();
 
@@ -2291,26 +2349,23 @@ function drawParticles() {
         );
 
         ctx.fill();
-    }
 
-    ctx.globalAlpha = 1;
+        ctx.globalAlpha = 1;
+    }
 }
 
-
 /* =========================================================
-   LIGHT / NIGHT
+   NIGHT
 ========================================================= */
 
 function drawNightOverlay() {
 
-    const night =
-        getNightAmount();
+    const amount = getNightAmount();
 
-    if (night <= 0) return;
-
+    if (amount <= 0) return;
 
     ctx.fillStyle =
-        `rgba(4,7,15,${night})`;
+        `rgba(5,8,18,${amount})`;
 
     ctx.fillRect(
         0,
@@ -2319,10 +2374,9 @@ function drawNightOverlay() {
         H
     );
 
+    /* luz do jogador */
 
-    // luz do jogador
-
-    const playerScreen =
+    const ps =
         worldToScreen(
             player.x,
             player.y
@@ -2330,40 +2384,50 @@ function drawNightOverlay() {
 
     const light =
         ctx.createRadialGradient(
-            playerScreen.x,
-            playerScreen.y,
-            10,
-            playerScreen.x,
-            playerScreen.y,
-            170
+            ps.x,
+            ps.y,
+            20,
+            ps.x,
+            ps.y,
+            250
         );
 
     light.addColorStop(
         0,
-        "rgba(190,178,130,.16)"
+        `rgba(0,0,0,${amount})`
+    );
+
+    light.addColorStop(
+        .35,
+        `rgba(0,0,0,${amount * .55})`
     );
 
     light.addColorStop(
         1,
-        "rgba(190,178,130,0)"
+        "rgba(0,0,0,0)"
     );
+
+    ctx.globalCompositeOperation =
+        "destination-out";
 
     ctx.fillStyle = light;
 
     ctx.beginPath();
 
     ctx.arc(
-        playerScreen.x,
-        playerScreen.y,
-        170,
+        ps.x,
+        ps.y,
+        250,
         0,
         Math.PI * 2
     );
 
     ctx.fill();
 
+    ctx.globalCompositeOperation =
+        "source-over";
 
-    // luz da fogueira
+    /* luz da fogueira */
 
     const fire =
         worldToScreen(
@@ -2375,21 +2439,29 @@ function drawNightOverlay() {
         ctx.createRadialGradient(
             fire.x,
             fire.y,
-            5,
+            10,
             fire.x,
             fire.y,
-            190
+            170
         );
 
     fireLight.addColorStop(
         0,
-        "rgba(226,155,65,.36)"
+        `rgba(0,0,0,${amount})`
+    );
+
+    fireLight.addColorStop(
+        .4,
+        `rgba(0,0,0,${amount * .55})`
     );
 
     fireLight.addColorStop(
         1,
-        "rgba(226,155,65,0)"
+        "rgba(0,0,0,0)"
     );
+
+    ctx.globalCompositeOperation =
+        "destination-out";
 
     ctx.fillStyle = fireLight;
 
@@ -2398,14 +2470,16 @@ function drawNightOverlay() {
     ctx.arc(
         fire.x,
         fire.y,
-        190,
+        170,
         0,
         Math.PI * 2
     );
 
     ctx.fill();
-}
 
+    ctx.globalCompositeOperation =
+        "source-over";
+}
 
 /* =========================================================
    VIGNETTE
@@ -2420,7 +2494,7 @@ function drawVignette() {
             Math.min(W, H) * .25,
             W / 2,
             H / 2,
-            Math.max(W, H) * .75
+            Math.max(W, H) * .7
         );
 
     gradient.addColorStop(
@@ -2430,7 +2504,7 @@ function drawVignette() {
 
     gradient.addColorStop(
         1,
-        "rgba(0,0,0,.62)"
+        "rgba(0,0,0,.45)"
     );
 
     ctx.fillStyle = gradient;
@@ -2442,7 +2516,6 @@ function drawVignette() {
         H
     );
 }
-
 
 /* =========================================================
    RENDER
@@ -2457,215 +2530,54 @@ function render() {
         H
     );
 
+    const shakeX =
+        random(
+            -camera.shake,
+            camera.shake
+        );
+
+    const shakeY =
+        random(
+            -camera.shake,
+            camera.shake
+        );
+
+    ctx.save();
+
+    ctx.translate(
+        shakeX,
+        shakeY
+    );
 
     drawGround();
 
+    drawShelter();
 
-    // objetos ordenados por Y
-
-    const objects = [];
-
-
-    for (const tree of trees) {
-        objects.push({
-            y: tree.y,
-            type: "tree",
-            object: tree
-        });
-    }
-
-
-    for (const rock of rocks) {
-        objects.push({
-            y: rock.y,
-            type: "rock",
-            object: rock
-        });
-    }
-
-
-    for (const mushroom of mushrooms) {
-        if (!mushroom.collected) {
-            objects.push({
-                y: mushroom.y,
-                type: "mushroom",
-                object: mushroom
-            });
-        }
-    }
-
-
-    for (const enemy of enemies) {
-        if (!enemy.dead) {
-            objects.push({
-                y: enemy.y,
-                type: "enemy",
-                object: enemy
-            });
-        }
-    }
-
-
-    objects.push({
-        y: shelter.y - 100,
-        type: "shelter",
-        object: shelter
-    });
-
-
-    objects.push({
-        y: campfire.y,
-        type: "fire",
-        object: campfire
-    });
-
-
-    objects.push({
-        y: player.y,
-        type: "player",
-        object: player
-    });
-
-
-    objects.sort(
-        (a, b) => a.y - b.y
-    );
-
+    drawCampfire();
 
     drawResources();
 
+    drawMushrooms();
 
-    for (const item of objects) {
+    drawTrees();
 
-        if (item.type === "tree") {
-            drawTree(item.object);
-        }
+    drawRocks();
 
-        else if (item.type === "rock") {
-            drawRock(item.object);
-        }
-
-        else if (item.type === "mushroom") {
-            drawMushroom(item.object);
-        }
-
-        else if (item.type === "enemy") {
-            drawGoblin(item.object);
-        }
-
-        else if (item.type === "shelter") {
-            drawShelter();
-        }
-
-        else if (item.type === "fire") {
-            drawCampfire();
-        }
-
-        else if (item.type === "player") {
-            drawPlayer();
-        }
-    }
-
+    drawEnemies();
 
     drawParticles();
+
+    drawPlayer();
+
+    ctx.restore();
 
     drawNightOverlay();
 
     drawVignette();
 }
 
-
 /* =========================================================
-   HUD
-========================================================= */
-
-function updateHUD() {
-
-    hpBar.style.width =
-        `${clamp(
-            player.hp / player.maxHp * 100,
-            0,
-            100
-        )}%`;
-
-
-    staminaBar.style.width =
-        `${clamp(
-            player.stamina /
-            player.maxStamina *
-            100,
-            0,
-            100
-        )}%`;
-
-
-    resourceText.innerHTML =
-        `🪵 ${resources.wood}
-         &nbsp; 🪨 ${resources.stone}
-         &nbsp; 🍄 ${resources.mushroom}`;
-
-
-    if (messageTimer > 0) {
-
-        interaction.textContent =
-            message;
-    }
-    else {
-
-        interaction.textContent = "";
-    }
-}
-
-
-/* =========================================================
-   UPDATE
-========================================================= */
-
-function update(dt) {
-
-    updatePlayer(dt);
-
-    updateEnemies(dt);
-
-    collectResources();
-
-    updateParticles(dt);
-
-    updateDayNight(dt);
-
-    updateCamera(dt);
-
-
-    if (messageTimer > 0) {
-        messageTimer -= dt;
-    }
-
-
-    if (
-        questStage === 1 &&
-        Math.hypot(
-            player.x - shelter.x,
-            player.y - shelter.y
-        ) < 170
-    ) {
-
-        questStage = 2;
-
-        questText.textContent =
-            "O abrigo parece esconder algo. Continue explorando.";
-
-        showMessage(
-            "Algo mudou depois que você trouxe o cogumelo."
-        );
-    }
-
-
-    updateHUD();
-}
-
-
-/* =========================================================
-   GAME LOOP
+   MAIN LOOP
 ========================================================= */
 
 let lastTime = performance.now();
@@ -2675,177 +2587,81 @@ function gameLoop(now) {
     const dt =
         Math.min(
             (now - lastTime) / 1000,
-            .033
+            .05
         );
 
     lastTime = now;
 
-    update(dt);
+    gameTime += dt;
+
+    updateWorldTime(dt);
+
+    updatePlayer(dt);
+
+    updateEnemies(dt);
+
+    updateParticles(dt);
+
+    updateCamera(dt);
+
+    updateMessage(dt);
+
+    updateQuest();
+
+    updateHUD();
 
     render();
 
     requestAnimationFrame(gameLoop);
 }
 
-
 /* =========================================================
-   MOBILE JOYSTICK
+   BUTTONS
 ========================================================= */
 
-let joystickActive = false;
+document
+    .getElementById("attackButton")
+    .addEventListener(
+        "pointerdown",
+        attack
+    );
 
+document
+    .getElementById("dodgeButton")
+    .addEventListener(
+        "pointerdown",
+        dodge
+    );
 
-function updateJoystick(clientX, clientY) {
-
-    const rect =
-        joystick.getBoundingClientRect();
-
-    const centerX =
-        rect.left + rect.width / 2;
-
-    const centerY =
-        rect.top + rect.height / 2;
-
-    let dx =
-        clientX - centerX;
-
-    let dy =
-        clientY - centerY;
-
-    const max =
-        rect.width * .34;
-
-    const length =
-        Math.hypot(dx, dy);
-
-
-    if (length > max) {
-
-        dx =
-            dx / length * max;
-
-        dy =
-            dy / length * max;
-    }
-
-
-    joystickKnob.style.transform =
-        `translate(${dx}px, ${dy}px)`;
-
-
-    joystickInput.x =
-        dx / max;
-
-    joystickInput.y =
-        dy / max;
-}
-
-
-function resetJoystick() {
-
-    joystickInput.x = 0;
-    joystickInput.y = 0;
-
-    joystickKnob.style.transform =
-        "translate(0,0)";
-
-    joystickActive = false;
-}
-
-
-joystick.addEventListener(
-    "pointerdown",
-    e => {
-
-        joystickActive = true;
-
-        joystick.setPointerCapture(
-            e.pointerId
-        );
-
-        updateJoystick(
-            e.clientX,
-            e.clientY
-        );
-    }
-);
-
-
-joystick.addEventListener(
-    "pointermove",
-    e => {
-
-        if (!joystickActive) return;
-
-        updateJoystick(
-            e.clientX,
-            e.clientY
-        );
-    }
-);
-
-
-joystick.addEventListener(
-    "pointerup",
-    resetJoystick
-);
-
-
-joystick.addEventListener(
-    "pointercancel",
-    resetJoystick
-);
-
-
-/* =========================================================
-   MOBILE BUTTONS
-========================================================= */
-
-attackButton.addEventListener(
-    "pointerdown",
-    e => {
-        e.preventDefault();
-        attack();
-    }
-);
-
-
-dodgeButton.addEventListener(
-    "pointerdown",
-    e => {
-        e.preventDefault();
-        dodge();
-    }
-);
-
-
-interactButton.addEventListener(
-    "pointerdown",
-    e => {
-        e.preventDefault();
-        interact();
-    }
-);
-
+document
+    .getElementById("interactButton")
+    .addEventListener(
+        "pointerdown",
+        interact
+    );
 
 /* =========================================================
    START
 ========================================================= */
 
+updateHUD();
+updateInventoryUI();
+
 setTimeout(() => {
+
+    const loading =
+        document.getElementById("loading");
 
     loading.style.opacity = "0";
 
     setTimeout(() => {
         loading.style.display = "none";
-    }, 500);
-
-    gameStarted = true;
+    }, 700);
 
 }, 900);
 
-
-questText.textContent =
-    "Explore a floresta e encontre um cogumelo estranho.";
+showMessage(
+    "A floresta está silenciosa..."
+);
 
 requestAnimationFrame(gameLoop);
