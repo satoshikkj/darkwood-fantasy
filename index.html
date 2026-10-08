@@ -2,68 +2,153 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>DARKWOOD</title>
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
-<div id="gameWrapper">
+<canvas id="gameCanvas"></canvas>
 
-    <canvas id="gameCanvas"></canvas>
+<!-- HUD -->
+<div id="hud">
 
-    <div id="hud">
+    <div class="top-left">
+        <div class="game-title">DARKWOOD</div>
 
-        <div id="topHud">
-            <div id="gameTitle">DARKWOOD</div>
+        <div class="bar-container">
+            <div class="bar hp">
+                <div id="hpBar"></div>
+            </div>
+            <span id="hpText">100 / 100</span>
+        </div>
 
-            <div id="bars">
-                <div class="bar">
-                    <span>HP</span>
-                    <div class="barBackground">
-                        <div id="hpBar"></div>
+        <div class="bar-container">
+            <div class="bar stamina">
+                <div id="staminaBar"></div>
+            </div>
+            <span id="staminaText">100 / 100</span>
+        </div>
+
+        <div id="dayText">DIA 1 • MANHÃ</div>
+        <div id="resourceText">🪵 0 &nbsp; 🪨 0 &nbsp; 🍄 0</div>
+    </div>
+
+    <div id="questBox">
+        <div class="quest-title">MISSÃO</div>
+        <div id="questText">
+            Explore a floresta e encontre um cogumelo estranho.
+        </div>
+    </div>
+
+</div>
+
+<!-- Mensagem de interação -->
+<div id="interaction"></div>
+
+<!-- Inventário -->
+<div id="inventoryPanel">
+
+    <div class="inventory-window">
+
+        <div class="inventory-header">
+            <span>INVENTÁRIO</span>
+            <button id="closeInventory">✕</button>
+        </div>
+
+        <div class="inventory-content">
+
+            <div class="inventory-section">
+                <h3>RECURSOS</h3>
+
+                <div class="inventory-grid">
+
+                    <div class="inventory-slot">
+                        <div class="item-icon">🪵</div>
+                        <div>Madeira</div>
+                        <strong id="invWood">0</strong>
                     </div>
-                </div>
 
-                <div class="bar">
-                    <span>STAMINA</span>
-                    <div class="barBackground">
-                        <div id="staminaBar"></div>
+                    <div class="inventory-slot">
+                        <div class="item-icon">🪨</div>
+                        <div>Pedra</div>
+                        <strong id="invStone">0</strong>
                     </div>
+
+                    <div class="inventory-slot">
+                        <div class="item-icon">🍄</div>
+                        <div>Cogumelos</div>
+                        <strong id="invMushroom">0</strong>
+                    </div>
+
+                    <div class="inventory-slot">
+                        <div class="item-icon">✨</div>
+                        <div>Estranho</div>
+                        <strong id="invStrange">0</strong>
+                    </div>
+
                 </div>
             </div>
 
-            <div id="dayText">DIA 1 — MANHÃ</div>
-            <div id="resourceText">🪵 0 &nbsp; 🪨 0 &nbsp; 🍄 0</div>
-        </div>
+            <div class="inventory-section crafting">
 
-        <div id="questBox">
-            <div class="questTitle">MISSÃO</div>
-            <div id="questText">
-                Explore a floresta e encontre um cogumelo estranho.
+                <h3>FABRICAÇÃO</h3>
+
+                <button class="craft-button" data-recipe="campfire">
+                    <span>🔥 Fogueira</span>
+                    <small>5 🪵 + 3 🪨</small>
+                </button>
+
+                <button class="craft-button" data-recipe="axe">
+                    <span>🪓 Machado</span>
+                    <small>8 🪵 + 4 🪨</small>
+                </button>
+
+                <button class="craft-button" data-recipe="sword">
+                    <span>⚔️ Espada simples</span>
+                    <small>5 🪵 + 8 🪨</small>
+                </button>
+
+                <button class="craft-button" data-recipe="potion">
+                    <span>🧪 Poção simples</span>
+                    <small>2 🍄 + 1 🪵</small>
+                </button>
+
             </div>
+
         </div>
 
-        <div id="interaction"></div>
+        <div class="inventory-footer">
+            Pressione <b>I</b> para fechar
+        </div>
+
     </div>
 
-    <div id="damageFlash"></div>
+</div>
 
-    <div id="joystick">
-        <div id="joystickKnob"></div>
-    </div>
+<!-- Joystick -->
+<div id="joystick">
+    <div id="joystickKnob"></div>
+</div>
 
-    <button id="interactButton">E</button>
-    <button id="attackButton">⚔</button>
-    <button id="dodgeButton">◆</button>
+<!-- Botões -->
+<div id="mobileControls">
 
-    <div id="loading">
-        <div class="loadingTitle">DARKWOOD</div>
-        <div class="loadingText">Carregando floresta...</div>
-    </div>
+    <button id="interactButton" class="action-button">E</button>
+    <button id="attackButton" class="action-button attack">⚔</button>
+    <button id="dodgeButton" class="action-button dodge">↯</button>
+    <button id="inventoryButton" class="action-button bag">🎒</button>
 
+</div>
+
+<!-- Flash de dano -->
+<div id="damageFlash"></div>
+
+<!-- Loading -->
+<div id="loading">
+    <div class="loading-title">DARKWOOD</div>
+    <div class="loading-text">A floresta está esperando...</div>
 </div>
 
 <script src="game.js"></script>
