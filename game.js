@@ -5225,63 +5225,7 @@ setTimeout(
 );
 
 V5.initialized = true;
-        if(e.key === "Escape"){
-            if(V5.dialogue){
-                closeDialogue();
-                return;
-            }
-
-            V5.paused = !V5.paused;
-            return;
-        }
-
-        if(V5.paused) return;
-
-        if(V5.dialogue){
-
-            if(e.key === "Enter" || e.key === " "){
-                e.preventDefault();
-                dialogueAdvance();
-                return;
-            }
-
-            if(e.key === "ArrowUp"){
-                e.preventDefault();
-                V5.dialogue.selected =
-                    Math.max(
-                        0,
-                        V5.dialogue.selected - 1
-                    );
-                return;
-            }
-
-            if(e.key === "ArrowDown"){
-                e.preventDefault();
-                V5.dialogue.selected =
-                    Math.min(
-                        V5.dialogue.choices.length - 1,
-                        V5.dialogue.selected + 1
-                    );
-                return;
-            }
-        }
-
-        if(e.key.toLowerCase() === "e"){
-            talkToNearestV5();
-        }
-
-        if(e.key.toLowerCase() === "p"){
-            usePotionV5();
-        }
-
-        if(e.key.toLowerCase() === "m"){
-            toggleMapV5();
-        }
-
-        if(e.key.toLowerCase() === "k"){
-            performSpecialAttackV5();
-        }
-    });
+        
 
     /* =====================================================
        INTERACTION
