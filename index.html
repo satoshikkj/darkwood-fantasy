@@ -1,115 +1,72 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-
 <head>
     <meta charset="UTF-8">
-
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    >
-
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>DARKWOOD</title>
-
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
-    <canvas id="gameCanvas"></canvas>
+<div id="gameWrapper">
 
-    <!-- HUD -->
+    <canvas id="gameCanvas"></canvas>
 
     <div id="hud">
 
-        <div class="top-left">
+        <div id="topHud">
+            <div id="gameTitle">DARKWOOD</div>
 
-            <div class="game-title">
-                DARKWOOD
-            </div>
-
-            <div class="status">
-
-                <div class="bar hp">
-                    <div id="hpBar"></div>
+            <div id="bars">
+                <div class="bar">
+                    <span>HP</span>
+                    <div class="barBackground">
+                        <div id="hpBar"></div>
+                    </div>
                 </div>
 
-                <div class="bar stamina">
-                    <div id="staminaBar"></div>
+                <div class="bar">
+                    <span>STAMINA</span>
+                    <div class="barBackground">
+                        <div id="staminaBar"></div>
+                    </div>
                 </div>
-
             </div>
 
-            <div id="dayText">
-                DIA 1 • MANHÃ
-            </div>
-
-            <div id="resourceText">
-                🍄 0 &nbsp; 🪵 0 &nbsp; 🪨 0
-            </div>
-
+            <div id="dayText">DIA 1 — MANHÃ</div>
+            <div id="resourceText">🪵 0 &nbsp; 🪨 0 &nbsp; 🍄 0</div>
         </div>
 
-        <!-- MISSÃO -->
-
         <div id="questBox">
-
-            <div class="quest-title">
-                MISSÃO
-            </div>
-
+            <div class="questTitle">MISSÃO</div>
             <div id="questText">
                 Explore a floresta e encontre um cogumelo estranho.
             </div>
-
         </div>
 
+        <div id="interaction"></div>
     </div>
 
-    <!-- Mensagens -->
-
-    <div id="interaction">
-        Explore a floresta.
-    </div>
-
-    <!-- Joystick -->
+    <div id="damageFlash"></div>
 
     <div id="joystick">
-
         <div id="joystickKnob"></div>
-
     </div>
 
-    <!-- Ações -->
-
-    <div id="actions">
-
-        <button id="interactButton">
-            E
-        </button>
-
-        <button id="attackButton">
-            ⚔
-        </button>
-
-    </div>
-
-    <!-- Loading -->
+    <button id="interactButton">E</button>
+    <button id="attackButton">⚔</button>
+    <button id="dodgeButton">◆</button>
 
     <div id="loading">
-
-        <div class="loading-title">
-            DARKWOOD
-        </div>
-
-        <div class="loading-subtitle">
-            A floresta está esperando...
-        </div>
-
+        <div class="loadingTitle">DARKWOOD</div>
+        <div class="loadingText">Carregando floresta...</div>
     </div>
 
-    <script src="game.js"></script>
+</div>
+
+<script src="game.js"></script>
 
 </body>
-
 </html>
