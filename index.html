@@ -1,421 +1,157 @@
-```html
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="theme-color" content="#080d09">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="description" content="Darkwood — uma aventura sombria de fantasia, sobrevivência e exploração.">
-    <title>DARKWOOD — V10</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>DARKWOOD</title>
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
-    <main id="game">
 
-        <canvas id="gameCanvas" aria-label="Mundo de Darkwood"></canvas>
+<canvas id="gameCanvas"></canvas>
 
-        <div id="loading">
-            <div class="loading-content">
-                <div class="loading-symbol">✦</div>
-                <h1>DARKWOOD</h1>
-                <p>O bosque está despertando...</p>
-                <div class="loading-track">
-                    <div class="loading-progress"></div>
-                </div>
-                <span>V10 · DARK FANTASY</span>
+<!-- HUD -->
+<div id="hud">
+
+    <div class="top-left">
+        <div class="game-title">DARKWOOD</div>
+
+        <div class="bar-container">
+            <div class="bar hp">
+                <div id="hpBar"></div>
             </div>
+            <span id="hpText">100 / 100</span>
         </div>
 
-        <div id="damageFlash"></div>
-
-        <header id="topHUD" class="hud-panel">
-            <div class="brand">
-                <span class="brand-symbol">✦</span>
-                <div>
-                    <h1>DARKWOOD</h1>
-                    <small>THE FORGOTTEN REALM</small>
-                </div>
+        <div class="bar-container">
+            <div class="bar stamina">
+                <div id="staminaBar"></div>
             </div>
+            <span id="staminaText">100 / 100</span>
+        </div>
 
-            <div class="day-info">
-                <span class="hud-label">CICLO</span>
-                <strong id="dayText">DIA 1</strong>
-            </div>
+        <div id="dayText">DIA 1 • MANHÃ</div>
+        <div id="resourceText">🪵 0 &nbsp; 🪨 0 &nbsp; 🍄 0</div>
+    </div>
 
-            <div class="vitals">
-                <div class="bar-line">
-                    <span class="bar-icon">♥</span>
-                    <div class="bar-track">
-                        <div id="hpBar" class="bar-fill hp-fill"></div>
+    <div id="questBox">
+        <div class="quest-title">MISSÃO</div>
+        <div id="questText">
+            Explore a floresta e encontre um cogumelo estranho.
+        </div>
+    </div>
+
+</div>
+
+<!-- Mensagem de interação -->
+<div id="interaction"></div>
+
+<!-- Inventário -->
+<div id="inventoryPanel">
+
+    <div class="inventory-window">
+
+        <div class="inventory-header">
+            <span>INVENTÁRIO</span>
+            <button id="closeInventory">✕</button>
+        </div>
+
+        <div class="inventory-content">
+
+            <div class="inventory-section">
+                <h3>RECURSOS</h3>
+
+                <div class="inventory-grid">
+
+                    <div class="inventory-slot">
+                        <div class="item-icon">🪵</div>
+                        <div>Madeira</div>
+                        <strong id="invWood">0</strong>
                     </div>
-                    <span id="hpText">100/100</span>
-                </div>
 
-                <div class="bar-line">
-                    <span class="bar-icon">⚡</span>
-                    <div class="bar-track">
-                        <div id="staminaBar" class="bar-fill stamina-fill"></div>
+                    <div class="inventory-slot">
+                        <div class="item-icon">🪨</div>
+                        <div>Pedra</div>
+                        <strong id="invStone">0</strong>
                     </div>
-                    <span id="staminaText">100/100</span>
+
+                    <div class="inventory-slot">
+                        <div class="item-icon">🍄</div>
+                        <div>Cogumelos</div>
+                        <strong id="invMushroom">0</strong>
+                    </div>
+
+                    <div class="inventory-slot">
+                        <div class="item-icon">✨</div>
+                        <div>Estranho</div>
+                        <strong id="invStrange">0</strong>
+                    </div>
+
                 </div>
             </div>
-        </header>
 
-        <section id="v5Hud" class="hud-panel progression-panel">
-            <div class="progression-top">
-                <strong id="v5Level">NÍVEL 1 · V10</strong>
-                <span id="v5Gold">✦ 0 ouro</span>
+            <div class="inventory-section crafting">
+
+                <h3>FABRICAÇÃO</h3>
+
+                <button class="craft-button" data-recipe="campfire">
+                    <span>🔥 Fogueira</span>
+                    <small>5 🪵 + 3 🪨</small>
+                </button>
+
+                <button class="craft-button" data-recipe="axe">
+                    <span>🪓 Machado</span>
+                    <small>8 🪵 + 4 🪨</small>
+                </button>
+
+                <button class="craft-button" data-recipe="sword">
+                    <span>⚔️ Espada simples</span>
+                    <small>5 🪵 + 8 🪨</small>
+                </button>
+
+                <button class="craft-button" data-recipe="potion">
+                    <span>🧪 Poção simples</span>
+                    <small>2 🍄 + 1 🪵</small>
+                </button>
+
             </div>
 
-            <div class="xp-track">
-                <div id="v5XpBar" class="xp-fill"></div>
-            </div>
-
-            <div class="progression-bottom">
-                <span id="v5Xp">XP: 0</span>
-                <span id="v5Class">Classe: Indefinida</span>
-            </div>
-
-            <div class="survival-bars">
-                <span id="v5Hunger">Fome: 0%</span>
-                <span id="v5Thirst">Sede: 0%</span>
-            </div>
-
-            <div id="weatherText" class="weather-label">Floresta</div>
-        </section>
-
-        <aside id="questPanel" class="hud-panel quest-panel">
-            <div class="panel-heading">
-                <span class="heading-symbol">◇</span>
-                <span>MISSÃO ATUAL</span>
-            </div>
-            <p id="questText">Explore a floresta.</p>
-            <div id="resourceText" class="resource-summary">
-                Madeira: 0 · Pedra: 0
-            </div>
-        </aside>
-
-        <div id="interaction" class="interaction-prompt">
-            <span class="interaction-key">E</span>
-            <span>INTERAGIR</span>
         </div>
 
-        <div id="v5Notification" class="notification" role="status" aria-live="polite"></div>
-
-        <section id="inventoryPanel" class="game-panel inventory-panel">
-            <div class="panel-title-row">
-                <div>
-                    <span class="eyebrow">SEUS PERTENCES</span>
-                    <h2>Inventário</h2>
-                </div>
-                <button id="closeInventory" class="icon-button" type="button" aria-label="Fechar inventário">✕</button>
-            </div>
-
-            <div class="inventory-grid">
-                <div class="inventory-item">
-                    <span class="item-icon">🪵</span>
-                    <span>Madeira</span>
-                    <strong id="invWood">0</strong>
-                </div>
-
-                <div class="inventory-item">
-                    <span class="item-icon">🪨</span>
-                    <span>Pedra</span>
-                    <strong id="invStone">0</strong>
-                </div>
-
-                <div class="inventory-item">
-                    <span class="item-icon">🍄</span>
-                    <span>Cogumelos</span>
-                    <strong id="invMushroom">0</strong>
-                </div>
-
-                <div class="inventory-item">
-                    <span class="item-icon">✧</span>
-                    <span>Fragmentos</span>
-                    <strong id="invStrange">0</strong>
-                </div>
-            </div>
-
-            <div class="section-divider"></div>
-
-            <h3>FABRICAÇÃO</h3>
-            <p class="muted">Reúna materiais para criar equipamentos e sobreviver.</p>
-
-            <div class="craft-list">
-                <button class="craft-button" data-recipe="campfire" type="button">
-                    <span>🔥</span>
-                    <span class="craft-info">
-                        <strong>Fogueira</strong>
-                        <small>5 madeiras · 3 pedras</small>
-                    </span>
-                    <span class="craft-arrow">＋</span>
-                </button>
-
-                <button class="craft-button" data-recipe="axe" type="button">
-                    <span>🪓</span>
-                    <span class="craft-info">
-                        <strong>Machado</strong>
-                        <small>8 madeiras · 4 pedras</small>
-                    </span>
-                    <span class="craft-arrow">＋</span>
-                </button>
-
-                <button class="craft-button" data-recipe="sword" type="button">
-                    <span>⚔</span>
-                    <span class="craft-info">
-                        <strong>Espada simples</strong>
-                        <small>5 madeiras · 8 pedras</small>
-                    </span>
-                    <span class="craft-arrow">＋</span>
-                </button>
-
-                <button class="craft-button" data-recipe="potion" type="button">
-                    <span>🧪</span>
-                    <span class="craft-info">
-                        <strong>Poção simples</strong>
-                        <small>2 cogumelos · 1 madeira</small>
-                    </span>
-                    <span class="craft-arrow">＋</span>
-                </button>
-            </div>
-        </section>
-
-        <section id="dialoguePanel" class="game-panel dialogue-panel">
-            <div class="dialogue-decoration">✧</div>
-            <span class="eyebrow">ENCONTRO</span>
-            <h2 id="dialogueSpeaker">Viajante</h2>
-            <p id="dialogueText">A floresta esconde segredos antigos.</p>
-            <div id="dialogueChoices" class="dialogue-choices"></div>
-        </section>
-
-        <section id="classSelection" class="game-panel class-selection">
-            <span class="eyebrow">ESCOLHA SEU DESTINO</span>
-            <h2>O poder dos cogumelos</h2>
-            <p class="muted">Sua escolha define seu caminho neste mundo.</p>
-
-            <button id="chooseWarrior" class="class-option" type="button">
-                <span class="class-symbol warrior-symbol">⚔</span>
-                <span>
-                    <strong>Guerreiro</strong>
-                    <small>Cogumelo vermelho · Força e resistência</small>
-                </span>
-            </button>
-
-            <button id="chooseMage" class="class-option" type="button">
-                <span class="class-symbol mage-symbol">✧</span>
-                <span>
-                    <strong>Mago</strong>
-                    <small>Cogumelo roxo · Magia e ataques arcanos</small>
-                </span>
-            </button>
-
-            <button id="chooseRogue" class="class-option" type="button">
-                <span class="class-symbol rogue-symbol">☽</span>
-                <span>
-                    <strong>Andarilho sombrio</strong>
-                    <small>Cogumelo verde · Velocidade e furtividade</small>
-                </span>
-            </button>
-        </section>
-
-        <section id="mapPanel" class="game-panel map-panel">
-            <div class="panel-title-row">
-                <div>
-                    <span class="eyebrow">EXPLORAÇÃO</span>
-                    <h2>Mapa do mundo</h2>
-                </div>
-                <button id="closeMap" class="icon-button" type="button" aria-label="Fechar mapa">✕</button>
-            </div>
-            <div id="mapContainer">
-                <span id="mapShelter">⌂ Abrigo</span>
-                <span id="mapElder">◇ Ancião</span>
-                <span id="mapPlayer">● Você</span>
-            </div>
-            <p class="muted">Explore novas regiões para descobrir caminhos, criaturas e ruínas.</p>
-        </section>
-
-        <section id="pausePanel" class="game-panel pause-panel">
-            <span class="eyebrow">DARKWOOD V10</span>
-            <h2>Jogo pausado</h2>
-            <p class="muted">A floresta espera pelo seu retorno.</p>
-
-            <button id="resumeButton" class="primary-button" type="button">Continuar</button>
-            <button id="saveButton" class="secondary-button" type="button">Salvar progresso</button>
-            <button id="loadButton" class="secondary-button" type="button">Carregar progresso</button>
-            <button id="skillsButton" class="secondary-button" type="button">Árvore de habilidades</button>
-            <button id="settingsButton" class="secondary-button" type="button">Configurações</button>
-        </section>
-
-        <div id="mobileControls">
-            <div id="joystick" aria-label="Controle de movimento">
-                <div class="joystick-ring"></div>
-                <div id="joystickKnob"></div>
-            </div>
-
-            <div id="actionButtons">
-                <button id="interactButton" class="action-button interact-action" type="button" aria-label="Interagir">
-                    <span>↗</span>
-                    <small>USAR</small>
-                </button>
-
-                <button id="dodgeButton" class="action-button dodge-action" type="button" aria-label="Esquivar">
-                    <span>➤</span>
-                    <small>ROLAR</small>
-                </button>
-
-                <button id="attackButton" class="action-button attack-action" type="button" aria-label="Atacar">
-                    <span>⚔</span>
-                    <small>ATACAR</small>
-                </button>
-
-                <button id="specialButton" class="action-button special-action" type="button" aria-label="Habilidade especial">
-                    <span>✧</span>
-                    <small>PODER</small>
-                </button>
-            </div>
+        <div class="inventory-footer">
+            Pressione <b>I</b> para fechar
         </div>
 
-        <nav id="bottomHUD" class="bottom-toolbar" aria-label="Menu do jogo">
-            <button id="inventoryButton" class="toolbar-button" type="button">
-                <span>▤</span>
-                <small>Inventário</small>
-            </button>
+    </div>
 
-            <button id="mapButton" class="toolbar-button" type="button">
-                <span>⌖</span>
-                <small>Mapa</small>
-            </button>
+</div>
 
-            <button id="eatButton" class="toolbar-button" type="button">
-                <span>🍄</span>
-                <small>Comer</small>
-            </button>
+<!-- Joystick -->
+<div id="joystick">
+    <div id="joystickKnob"></div>
+</div>
 
-            <button id="potionButton" class="toolbar-button" type="button">
-                <span>⚗</span>
-                <small>Poção</small>
-            </button>
+<!-- Botões -->
+<div id="mobileControls">
 
-            <button id="skillsButtonToolbar" class="toolbar-button" type="button">
-                <span>✧</span>
-                <small>Habilidades</small>
-            </button>
+    <button id="interactButton" class="action-button">E</button>
+    <button id="attackButton" class="action-button attack">⚔</button>
+    <button id="dodgeButton" class="action-button dodge">↯</button>
+    <button id="inventoryButton" class="action-button bag">🎒</button>
 
-            <button id="pauseButton" class="toolbar-button" type="button">
-                <span>Ⅱ</span>
-                <small>Pausar</small>
-            </button>
-        </nav>
+</div>
 
-        <div id="desktopHints">
-            <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Mover</span>
-            <span><kbd>ESPAÇO</kbd> Atacar</span>
-            <span><kbd>E</kbd> Interagir</span>
-            <span><kbd>SHIFT</kbd> Esquivar</span>
-            <span><kbd>I</kbd> Inventário</span>
-            <span><kbd>ESC</kbd> Fechar painel</span>
-        </div>
+<!-- Flash de dano -->
+<div id="damageFlash"></div>
 
-    </main>
+<!-- Loading -->
+<div id="loading">
+    <div class="loading-title">DARKWOOD</div>
+    <div class="loading-text">A floresta está esperando...</div>
+</div>
 
-    <script src="game.js"></script>
+<script src="game.js"></script>
 
-    <script>
-        (() => {
-            const $ = id => document.getElementById(id);
-
-            const inventory = $("inventoryPanel");
-            const map = $("mapPanel");
-            const pause = $("pausePanel");
-            const dialogue = $("dialoguePanel");
-            const classSelection = $("classSelection");
-
-            function showPanel(panel) {
-                if (!panel) return;
-                panel.style.display = "block";
-            }
-
-            function hidePanel(panel) {
-                if (!panel) return;
-                panel.style.display = "none";
-            }
-
-            $("mapButton")?.addEventListener("click", () => {
-                if (map) {
-                    map.classList.toggle("open");
-                    map.style.display = map.style.display === "block" ? "none" : "block";
-                }
-            });
-
-            $("closeMap")?.addEventListener("click", () => hidePanel(map));
-
-            $("pauseButton")?.addEventListener("click", () => {
-                if (!pause) return;
-                pause.style.display = pause.style.display === "block" ? "none" : "block";
-            });
-
-            $("resumeButton")?.addEventListener("click", () => hidePanel(pause));
-
-            $("saveButton")?.addEventListener("click", () => {
-                if (window.DarkwoodV10) window.DarkwoodV10.save();
-            });
-
-            $("loadButton")?.addEventListener("click", () => {
-                if (window.DarkwoodV10) window.DarkwoodV10.load();
-            });
-
-            const openSkills = () => {
-                if (window.DarkwoodV10) window.DarkwoodV10.openSkills();
-            };
-
-            $("skillsButton")?.addEventListener("click", openSkills);
-            $("skillsButtonToolbar")?.addEventListener("click", openSkills);
-
-            $("settingsButton")?.addEventListener("click", () => {
-                if (window.DarkwoodV10) window.DarkwoodV10.openSettings();
-            });
-
-            $("closeInventory")?.addEventListener("click", () => hidePanel(inventory));
-
-            $("closeDialogue")?.addEventListener("click", () => hidePanel(dialogue));
-
-            document.addEventListener("keydown", event => {
-                if (event.key === "Escape") {
-                    [inventory, map, pause, dialogue, classSelection].forEach(hidePanel);
-                }
-
-                if (event.key.toLowerCase() === "i") {
-                    if (inventory) inventory.classList.toggle("open");
-                }
-
-                if (event.key.toLowerCase() === "m") {
-                    if (map) {
-                        map.style.display = map.style.display === "block" ? "none" : "block";
-                    }
-                }
-            });
-
-            document.addEventListener("contextmenu", event => {
-                if (event.target.closest("#game")) event.preventDefault();
-            });
-
-            document.addEventListener("touchmove", event => {
-                if (event.target.closest("#gameCanvas, #joystick, #actionButtons")) {
-                    event.preventDefault();
-                }
-            }, { passive: false });
-
-            window.addEventListener("orientationchange", () => {
-                setTimeout(() => window.dispatchEvent(new Event("resize")), 150);
-            });
-        })();
-    </script>
 </body>
 </html>
-```
