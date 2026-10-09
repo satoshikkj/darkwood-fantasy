@@ -1,3 +1,4 @@
+```javascript
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
@@ -38,24 +39,17 @@ const player = {
     x: 1800,
     y: 1350,
     radius: 15,
-
     hp: 100,
     maxHp: 100,
-
     stamina: 100,
     maxStamina: 100,
-
     speed: 170,
-
     dirX: 1,
     dirY: 0,
-
     attackCooldown: 0,
     attackTimer: 0,
-
     dodgeCooldown: 0,
     dodgeTimer: 0,
-
     invulnerable: 0,
     hurtTimer: 0
 };
@@ -85,7 +79,6 @@ let craftedItems = {
 };
 
 let questStage = 0;
-
 let messageTimer = 0;
 let messageText = "";
 
@@ -141,6 +134,10 @@ const campfire = {
     radius: 32
 };
 
+/* =========================================================
+   WORLD GENERATION
+========================================================= */
+
 function insideShelter(x, y, margin = 0) {
     return (
         x > shelter.x - shelter.width / 2 - margin &&
@@ -150,12 +147,7 @@ function insideShelter(x, y, margin = 0) {
     );
 }
 
-/* =========================================================
-   WORLD GENERATION
-========================================================= */
-
 function generateWorld() {
-
     trees.length = 0;
     rocks.length = 0;
     mushrooms.length = 0;
@@ -164,7 +156,6 @@ function generateWorld() {
     enemies.length = 0;
 
     for (let i = 0; i < 220; i++) {
-
         const x = random(100, world.width - 100);
         const y = random(100, world.height - 100);
 
@@ -178,7 +169,6 @@ function generateWorld() {
     }
 
     for (let i = 0; i < 90; i++) {
-
         const x = random(80, world.width - 80);
         const y = random(80, world.height - 80);
 
@@ -192,101 +182,103 @@ function generateWorld() {
     }
 
     for (let i = 0; i < 40; i++) {
-
         const x = random(80, world.width - 80);
         const y = random(80, world.height - 80);
 
         if (!insideShelter(x, y, 100)) {
-
             mushrooms.push({
                 x,
                 y,
                 radius: 8,
-                strange: Math.random() < .2,
+                strange: Math.random() < 0.2,
                 collected: false
             });
         }
     }
 
     for (let i = 0; i < 50; i++) {
+        const x = random(80, world.width - 80);
+        const y = random(80, world.height - 80);
 
         woods.push({
-            x: random(80, world.width - 80),
-            y: random(80, world.height - 80),
+            x,
+            y,
             radius: 8,
             collected: false
         });
     }
 
     for (let i = 0; i < 50; i++) {
+        const x = random(80, world.width - 80);
+        const y = random(80, world.height - 80);
 
         stones.push({
-            x: random(80, world.width - 80),
-            y: random(80, world.height - 80),
+            x,
+            y,
             radius: 8,
             collected: false
         });
     }
 
     for (let i = 0; i < 9; i++) {
-
         let x;
         let y;
 
         do {
-            x = random(300, world.width - 300);
-            y = random(300, world.height - 300);
-        } while (
-            insideShelter(x, y, 300) ||
-            Math.hypot(x - player.x, y - player.y) < 500
-        );
+            x = random(150, world.width - 150);
+            y = random(150, world.height - 150);
+        } while (insideShelter(x, y, 300));
 
         enemies.push({
             x,
             y,
-            radius: 18,
-
+            radius: 15,
             hp: 60,
             maxHp: 60,
-
             speed: random(45, 65),
-
-            attackCooldown: random(0, 2),
-
+            damage: 8,
+            attackCooldown: 0,
+            hitTimer: 0,
             wanderTimer: random(1, 4),
-
-            dirX: random(-1, 1),
-            dirY: random(-1, 1),
-
-            hitTimer: 0
+            wanderX: 0,
+            wanderY: 0,
+            dead: false,
+            type: "goblin"
         });
     }
 }
-
-generateWorld();
 
 /* =========================================================
    COLLISIONS
 ========================================================= */
 
-function isBlocked(x, y, radius) {
+function circleRectCollision(cx, cy, radius, rx, ry, rw, rh) {
+    const nearestX = Math.max(rx, Math.min(cx, rx + rw));
+    const nearestY = Math.max(ry, Math.min(cy, ry + rh));
+    const dx = cx - nearestX;
+    const dy = cy - nearestY;
+
+    return dx * dx + dy * dy < radius * radius;
+}
+
+function isBlocked(x, y, radius = player.radius) {
+    if (
+        x < radius ||
+        y < radius ||
+        x > world.width - radius ||
+        y > world.height - radius
+    ) {
+        return true;
+    }
 
     for (const tree of trees) {
-
-        if (
-            Math.hypot(x - tree.x, y - tree.y) <
-            radius + tree.radius * .65
-        ) {
+        if (Math.hypot(x - tree.x, y - tree.y) < radius + tree.radius * 0.65) {
             return true;
         }
     }
 
     for (const rock of rocks) {
-
-        if (
-            Math.hypot(x - rock.x, y - rock.y) <
-            radius + rock.radius * .7
-        ) {
+        if (Math.hypot(x - rock.x, y - rock.y) < radius + rock.radius * 0.75) {
             return true;
         }
     }
@@ -298,375 +290,233 @@ function isBlocked(x, y, radius) {
    INPUT
 ========================================================= */
 
-const keys = {};
+const keys = Object.create(null);
 
-window.addEventListener("keydown", e => {
+let joystickActive = false;
+let joystickX = 0;
+let joystickY = 0;
+let joystickPointerId = null;
 
-    keys[e.key.toLowerCase()] = true;
+window.addEventListener("keydown", event => {
+    keys[event.key.toLowerCase()] = true;
 
     if (
-        e.key.toLowerCase() === "i" ||
-        e.key.toLowerCase() === "b"
+        ["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(
+            event.key.toLowerCase()
+        )
     ) {
+        event.preventDefault();
+    }
+
+    if (event.repeat) return;
+
+    if (event.key.toLowerCase() === "i" || event.key.toLowerCase() === "b") {
         toggleInventory();
     }
 
-    if (e.key === " " || e.key.toLowerCase() === "j") {
-        attack();
-    }
-
-    if (
-        e.key === "Shift" ||
-        e.key.toLowerCase() === "k"
-    ) {
-        dodge();
-    }
-
-    if (e.key.toLowerCase() === "e") {
+    if (event.key.toLowerCase() === "e") {
         interact();
     }
 
-    if (e.key === "Escape") {
-        if (V5.dialogue) {
-            V5.dialogue = null;
-        }
+    if (event.key.toLowerCase() === "j" || event.key === " ") {
+        attack();
+    }
+
+    if (event.key.toLowerCase() === "k" || event.key === "Shift") {
+        dodge();
     }
 });
 
-window.addEventListener("keyup", e => {
-    keys[e.key.toLowerCase()] = false;
+window.addEventListener("keyup", event => {
+    keys[event.key.toLowerCase()] = false;
 });
 
-/* =========================================================
-   JOYSTICK
-========================================================= */
-
-let joystick = {
-    active: false,
-    x: 0,
-    y: 0
-};
-
-const joystickElement = document.getElementById("joystick");
-const joystickKnob = document.getElementById("joystickKnob");
-
-function updateJoystick(clientX, clientY) {
-
-    if (!joystickElement) return;
-
-    const rect = joystickElement.getBoundingClientRect();
-
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-
-    let dx = clientX - centerX;
-    let dy = clientY - centerY;
-
-    const max = rect.width / 2 - 28;
-
-    const len = Math.hypot(dx, dy);
-
-    if (len > max) {
-        dx = dx / len * max;
-        dy = dy / len * max;
+window.addEventListener("blur", () => {
+    for (const key in keys) {
+        keys[key] = false;
     }
 
-    joystick.x = dx / max;
-    joystick.y = dy / max;
-
-    if (joystickKnob) {
-        joystickKnob.style.transform =
-            `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
-    }
-}
-
-if (joystickElement) {
-
-    joystickElement.addEventListener("pointerdown", e => {
-
-        joystick.active = true;
-
-        joystickElement.setPointerCapture(e.pointerId);
-
-        updateJoystick(e.clientX, e.clientY);
-    });
-
-    joystickElement.addEventListener("pointermove", e => {
-
-        if (joystick.active) {
-            updateJoystick(e.clientX, e.clientY);
-        }
-    });
-
-    joystickElement.addEventListener("pointerup", resetJoystick);
-    joystickElement.addEventListener("pointercancel", resetJoystick);
-}
-
-function resetJoystick() {
-
-    joystick.active = false;
-    joystick.x = 0;
-    joystick.y = 0;
-
-    if (joystickKnob) {
-        joystickKnob.style.transform =
-            "translate(-50%, -50%)";
-    }
-}
+    joystickActive = false;
+    joystickX = 0;
+    joystickY = 0;
+});
 
 /* =========================================================
    INVENTORY
 ========================================================= */
 
-const inventoryPanel =
-    document.getElementById("inventoryPanel");
-
-const inventoryButton =
-    document.getElementById("inventoryButton");
-
-const closeInventory =
-    document.getElementById("closeInventory");
-
 function toggleInventory() {
-
-    if (!inventoryPanel) return;
-
     inventoryOpen = !inventoryOpen;
 
-    inventoryPanel.classList.toggle(
-        "open",
-        inventoryOpen
-    );
+    const panel = document.getElementById("inventoryPanel");
+
+    if (panel) {
+        panel.style.display = inventoryOpen ? "block" : "none";
+    }
 
     updateInventoryUI();
 }
 
 function updateInventoryUI() {
-
-    const values = {
-        invWood: resources.wood,
-        invStone: resources.stone,
-        invMushroom: resources.mushroom,
-        invStrange: resources.strange
+    const setText = (id, value) => {
+        const element = document.getElementById(id);
+        if (element) element.textContent = value;
     };
 
-    for (const id in values) {
+    setText("invWood", resources.wood);
+    setText("invStone", resources.stone);
+    setText("invMushroom", resources.mushroom);
+    setText("invStrange", resources.strange);
 
-        const element = document.getElementById(id);
-
-        if (element) {
-            element.textContent = values[id];
-        }
-    }
-}
-
-if (inventoryButton) {
-    inventoryButton.addEventListener(
-        "click",
-        toggleInventory
-    );
-}
-
-if (closeInventory) {
-    closeInventory.addEventListener(
-        "click",
-        toggleInventory
-    );
-}
-
-if (inventoryPanel) {
-
-    inventoryPanel.addEventListener("pointerdown", e => {
-
-        if (e.target === inventoryPanel) {
-            toggleInventory();
-        }
-    });
+    setText("invCampfire", craftedItems.campfire);
+    setText("invAxe", craftedItems.axe);
+    setText("invSword", craftedItems.sword);
+    setText("invPotion", craftedItems.potion);
 }
 
 /* =========================================================
    CRAFTING
 ========================================================= */
 
-const recipes = {
-
-    campfire: {
-        name: "Fogueira",
-        costs: {
+function craftItem(type) {
+    const recipes = {
+        campfire: {
             wood: 5,
-            stone: 3
-        }
-    },
-
-    axe: {
-        name: "Machado",
-        costs: {
+            stone: 3,
+            label: "Fogueira"
+        },
+        axe: {
             wood: 8,
-            stone: 4
-        }
-    },
-
-    sword: {
-        name: "Espada simples",
-        costs: {
+            stone: 4,
+            label: "Machado"
+        },
+        sword: {
             wood: 5,
-            stone: 8
-        }
-    },
-
-    potion: {
-        name: "Poção simples",
-        costs: {
+            stone: 8,
+            label: "Espada simples"
+        },
+        potion: {
             mushroom: 2,
-            wood: 1
+            wood: 1,
+            label: "Poção simples"
         }
-    }
-};
+    };
 
-document.querySelectorAll(".craft-button")
-    .forEach(button => {
+    const recipe = recipes[type];
 
-        button.addEventListener("click", () => {
+    if (!recipe) return;
 
-            const recipe =
-                recipes[button.dataset.recipe];
+    for (const resource in recipe) {
+        if (resource === "label") continue;
 
-            if (recipe) {
-                craft(button.dataset.recipe, recipe);
-            }
-        });
-    });
-
-function hasResources(costs) {
-
-    for (const key in costs) {
-
-        if (resources[key] < costs[key]) {
-            return false;
+        if ((resources[resource] || 0) < recipe[resource]) {
+            showMessage("Recursos insuficientes para criar " + recipe.label + ".");
+            return;
         }
     }
 
-    return true;
-}
-
-function craft(id, recipe) {
-
-    if (!hasResources(recipe.costs)) {
-
-        showMessage(
-            "Você não possui recursos suficientes."
-        );
-
-        return;
+    for (const resource in recipe) {
+        if (resource === "label") continue;
+        resources[resource] -= recipe[resource];
     }
 
-    for (const key in recipe.costs) {
-        resources[key] -= recipe.costs[key];
-    }
+    craftedItems[type]++;
 
-    craftedItems[id]++;
-
-    updateInventoryUI();
+    showMessage(recipe.label + " criado!");
+    createCraftParticles(player.x, player.y);
     updateHUD();
-
-    showMessage(
-        `${recipe.name} fabricado.`
-    );
-
-    createCraftParticles();
+    updateInventoryUI();
 }
 
-function createCraftParticles() {
-
-    for (let i = 0; i < 18; i++) {
-
+function createCraftParticles(x, y) {
+    for (let i = 0; i < 16; i++) {
         particles.push({
-            x: player.x + random(-15, 15),
-            y: player.y + random(-20, 10),
-
-            vx: random(-50, 50),
-            vy: random(-80, -20),
-
-            life: random(.4, .8),
-            maxLife: .8,
-
+            x,
+            y,
+            vx: random(-55, 55),
+            vy: random(-70, 10),
+            life: random(0.3, 0.8),
+            maxLife: 0.8,
             size: random(2, 5),
-
-            type: "craft"
+            color: "#c7d8a4"
         });
     }
 }
 
 /* =========================================================
-   ATTACK
+   COMBAT
 ========================================================= */
 
 function attack() {
-
-    if (inventoryOpen) return;
-    if (V5.dialogue) return;
-
-    if (player.attackCooldown > 0) return;
-
+    if (inventoryOpen || player.attackCooldown > 0) return;
     if (player.stamina < 12) {
-
-        showMessage("Sem energia.");
-
+        showMessage("Você está sem energia.");
         return;
     }
 
     player.stamina -= 12;
+    player.attackCooldown = 0.45;
+    player.attackTimer = 0.16;
+    camera.shake = Math.max(camera.shake, 5);
 
-    player.attackCooldown = .45;
-    player.attackTimer = .16;
-
-    camera.shake = 5;
+    let hits = 0;
 
     for (const enemy of enemies) {
-
-        if (enemy.hp <= 0) continue;
+        if (enemy.dead) continue;
 
         const dx = enemy.x - player.x;
         const dy = enemy.y - player.y;
-
         const dist = Math.hypot(dx, dy);
 
-        if (dist > 75) continue;
+        if (dist > 75 || dist === 0) continue;
 
         const dot =
-            (dx / Math.max(dist, 1)) * player.dirX +
-            (dy / Math.max(dist, 1)) * player.dirY;
+            (dx / dist) * player.dirX +
+            (dy / dist) * player.dirY;
 
-        if (dot < .15) continue;
+        if (dot < 0.15) continue;
 
         enemy.hp -= 25;
+        enemy.hitTimer = 0.2;
+        enemy.x += (dx / dist) * 25;
+        enemy.y += (dy / dist) * 25;
 
-        enemy.hitTimer = .2;
+        hits++;
 
-        enemy.x +=
-            dx / Math.max(dist, 1) * 25;
-
-        enemy.y +=
-            dy / Math.max(dist, 1) * 25;
-
-        createHitParticles(
-            enemy.x,
-            enemy.y
-        );
+        for (let i = 0; i < 8; i++) {
+            particles.push({
+                x: enemy.x,
+                y: enemy.y,
+                vx: random(-75, 75),
+                vy: random(-75, 75),
+                life: random(0.15, 0.4),
+                maxLife: 0.4,
+                size: random(2, 4),
+                color: "#b7a18b"
+            });
+        }
 
         if (enemy.hp <= 0) {
-
+            enemy.dead = true;
             resources.wood++;
 
-            createDeathParticles(
-                enemy.x,
-                enemy.y
-            );
-
-            showMessage(
-                "Goblins derrotados."
-            );
+            for (let i = 0; i < 14; i++) {
+                particles.push({
+                    x: enemy.x,
+                    y: enemy.y,
+                    vx: random(-90, 90),
+                    vy: random(-90, 90),
+                    life: random(0.25, 0.7),
+                    maxLife: 0.7,
+                    size: random(2, 5),
+                    color: "#7e9b63"
+                });
+            }
         }
+    }
+
+    if (hits > 0) {
+        showMessage("Golpe acertou!");
     }
 
     updateHUD();
@@ -677,65 +527,31 @@ function attack() {
 ========================================================= */
 
 function dodge() {
-
-    if (V5.dialogue) return;
-
-    if (player.dodgeCooldown > 0) return;
+    if (inventoryOpen || player.dodgeCooldown > 0) return;
 
     if (player.stamina < 25) {
-
-        showMessage("Sem energia.");
-
+        showMessage("Sem energia para esquivar.");
         return;
     }
 
-    let dx = joystick.x;
-    let dy = joystick.y;
-
-    if (
-        Math.abs(dx) < .1 &&
-        Math.abs(dy) < .1
-    ) {
-
-        dx =
-            (keys["d"] || keys["arrowright"] ? 1 : 0) -
-            (keys["a"] || keys["arrowleft"] ? 1 : 0);
-
-        dy =
-            (keys["s"] || keys["arrowdown"] ? 1 : 0) -
-            (keys["w"] || keys["arrowup"] ? 1 : 0);
-    }
-
-    const len = Math.hypot(dx, dy);
-
-    if (len < .1) {
-
-        dx = player.dirX;
-        dy = player.dirY;
-    } else {
-
-        dx /= len;
-        dy /= len;
-    }
-
     player.stamina -= 25;
+    player.dodgeCooldown = 0.7;
+    player.dodgeTimer = 0.22;
+    player.invulnerable = 0.25;
+    camera.shake = Math.max(camera.shake, 3);
 
-    player.dodgeCooldown = .7;
-    player.dodgeTimer = .22;
-    player.invulnerable = .25;
-
-    player.x += dx * 75;
-    player.y += dy * 75;
-
-    player.x =
-        Math.max(30, Math.min(world.width - 30, player.x));
-
-    player.y =
-        Math.max(30, Math.min(world.height - 30, player.y));
-
-    camera.shake = 3;
-
-    createDodgeParticles();
+    for (let i = 0; i < 8; i++) {
+        particles.push({
+            x: player.x,
+            y: player.y,
+            vx: random(-35, 35),
+            vy: random(-35, 35),
+            life: random(0.15, 0.35),
+            maxLife: 0.35,
+            size: random(2, 4),
+            color: "#a7b5a0"
+        });
+    }
 }
 
 /* =========================================================
@@ -743,184 +559,863 @@ function dodge() {
 ========================================================= */
 
 function interact() {
-
-    if (V5.dialogue) {
-
-        dialogueAdvance();
-
-        return;
-    }
-
-    const elderDistance =
-        Math.hypot(
-            player.x - V5.elder.x,
-            player.y - V5.elder.y
-        );
-
-    if (
-        V5.elder.active &&
-        elderDistance < 75
-    ) {
-
-        interactElder();
-
-        return;
-    }
+    if (inventoryOpen) return;
 
     let nearest = null;
     let nearestDistance = Infinity;
-    let nearestType = null;
+    let nearestType = "";
 
-    for (const mushroom of mushrooms) {
+    const groups = [
+        [mushrooms, "mushroom"],
+        [woods, "wood"],
+        [stones, "stone"]
+    ];
 
-        if (mushroom.collected) continue;
+    for (const [group, type] of groups) {
+        for (const object of group) {
+            if (object.collected) continue;
 
-        const d =
-            Math.hypot(
-                player.x - mushroom.x,
-                player.y - mushroom.y
+            const dist = Math.hypot(
+                player.x - object.x,
+                player.y - object.y
             );
 
-        if (d < nearestDistance) {
-
-            nearest = mushroom;
-            nearestDistance = d;
-            nearestType = "mushroom";
+            if (dist < 55 && dist < nearestDistance) {
+                nearest = object;
+                nearestDistance = dist;
+                nearestType = type;
+            }
         }
     }
 
-    for (const wood of woods) {
-
-        if (wood.collected) continue;
-
-        const d =
-            Math.hypot(
-                player.x - wood.x,
-                player.y - wood.y
-            );
-
-        if (d < nearestDistance) {
-
-            nearest = wood;
-            nearestDistance = d;
-            nearestType = "wood";
+    if (!nearest) {
+        if (insideShelter(player.x, player.y, 180)) {
+            showMessage("Abrigo: local seguro.");
+        } else {
+            showMessage("Não há nada para interagir aqui.");
         }
-    }
-
-    for (const stone of stones) {
-
-        if (stone.collected) continue;
-
-        const d =
-            Math.hypot(
-                player.x - stone.x,
-                player.y - stone.y
-            );
-
-        if (d < nearestDistance) {
-
-            nearest = stone;
-            nearestDistance = d;
-            nearestType = "stone";
-        }
-    }
-
-    if (
-        nearest &&
-        nearestDistance <= 55
-    ) {
-
-        collectObject(
-            nearest,
-            nearestType
-        );
 
         return;
     }
 
-    if (
-        Math.abs(player.x - shelter.x) < 180 &&
-        Math.abs(player.y - shelter.y) < 150
-    ) {
-
-        showMessage(
-            "Abrigo: local seguro."
-        );
-
-    } else {
-
-        showMessage(
-            "Não há nada para interagir aqui."
-        );
-    }
+    collectObject(nearest, nearestType);
 }
 
-/* =========================================================
-   COLLECTION
-========================================================= */
-
-function collectObject(obj, type) {
-
-    obj.collected = true;
+function collectObject(object, type) {
+    object.collected = true;
 
     if (type === "mushroom") {
-
-        if (obj.strange) {
-
+        if (object.strange) {
             resources.strange++;
 
             if (questStage === 0) {
                 questStage = 1;
-
-                showMessage(
-                    "O cogumelo estranho está reagindo."
-                );
+                showMessage("O cogumelo estranho está reagindo. Volte ao abrigo.");
+            } else {
+                showMessage("Você encontrou um cogumelo estranho.");
             }
-
         } else {
-
             resources.mushroom++;
+            showMessage("Cogumelo coletado.");
+        }
+    } else if (type === "wood") {
+        resources.wood++;
+        showMessage("Madeira coletada.");
+    } else if (type === "stone") {
+        resources.stone++;
+        showMessage("Pedra coletada.");
+    }
 
-            showMessage(
-                "Cogumelo coletado."
-            );
+    createCraftParticles(object.x, object.y);
+    updateHUD();
+    updateInventoryUI();
+}
+```
+
+```javascript
+/* =========================================================
+   V5–V10: SISTEMAS DE JOGO
+========================================================= */
+
+const progression = {
+    level: 1,
+    xp: 0,
+    xpToNext: 100,
+    gold: 0,
+    skillPoints: 0,
+    kills: 0,
+    bossesDefeated: 0
+};
+
+const survival = {
+    hunger: 100,
+    thirst: 100,
+    hungerTimer: 0,
+    thirstTimer: 0,
+    starvationTimer: 0
+};
+
+const equipment = {
+    weapon: "sword",
+    armor: "none",
+    axeLevel: 0,
+    swordLevel: 1,
+    armorLevel: 0,
+    potions: 0,
+    arrows: 0
+};
+
+const playerClass = {
+    selected: null,
+    unlocked: {
+        warrior: true,
+        mage: true,
+        rogue: true
+    },
+    mana: 100,
+    maxMana: 100,
+    specialCooldown: 0,
+    skills: {
+        strength: 0,
+        defense: 0,
+        magic: 0,
+        agility: 0,
+        healing: 0
+    }
+};
+
+const weather = {
+    current: "clear",
+    timer: 0,
+    duration: 90,
+    intensity: 0,
+    wind: 0
+};
+
+const worldState = {
+    paused: false,
+    gameOver: false,
+    started: false,
+    mapOpen: false,
+    dialogueOpen: false,
+    classMenuOpen: false,
+    saveSlot: "darkwood-save-v10",
+    lastTimestamp: 0,
+    elapsed: 0,
+    bossSpawned: false,
+    ending: null
+};
+
+const quests = {
+    active: "first_mushroom",
+    completed: [],
+    progress: Object.create(null)
+};
+
+const structures = [];
+const npcs = [];
+const animals = [];
+const chests = [];
+const crystals = [];
+const shrines = [];
+const fireflies = [];
+const spells = [];
+const floatingTexts = [];
+const worldEvents = [];
+
+let dialogue = null;
+let activeBoss = null;
+let minimapVisible = false;
+let attackCombo = 0;
+let attackComboTimer = 0;
+let footstepTimer = 0;
+let ambientTimer = 0;
+let autosaveTimer = 0;
+let survivalDamageTimer = 0;
+let gameStarted = false;
+
+const CLASS_INFO = {
+    warrior: {
+        name: "Guerreiro",
+        description: "Combate corpo a corpo, resistência e força.",
+        color: "#c85f4e",
+        hp: 125,
+        stamina: 115,
+        mana: 50,
+        speed: 165,
+        damage: 1.3
+    },
+    mage: {
+        name: "Mago",
+        description: "Magia elemental, ataques à distância e cura.",
+        color: "#a28be8",
+        hp: 85,
+        stamina: 95,
+        mana: 150,
+        speed: 160,
+        damage: 1
+    },
+    rogue: {
+        name: "Ladino",
+        description: "Velocidade, esquiva, furtividade e golpes rápidos.",
+        color: "#7fb66b",
+        hp: 95,
+        stamina: 130,
+        mana: 75,
+        speed: 205,
+        damage: 1.05
+    }
+};
+
+const QUEST_DATA = {
+    first_mushroom: {
+        title: "O cogumelo estranho",
+        description: "Encontre um cogumelo estranho na floresta.",
+        target: 1
+    },
+    return_shelter: {
+        title: "O caminho de volta",
+        description: "Volte ao abrigo e descubra o que aconteceu.",
+        target: 1
+    },
+    meet_elder: {
+        title: "Uma voz na floresta",
+        description: "Encontre o ancião perto das ruínas.",
+        target: 1
+    },
+    gather_supplies: {
+        title: "Preparativos",
+        description: "Reúna 5 madeiras e 3 pedras.",
+        target: 1
+    },
+    investigate_ruins: {
+        title: "Ruínas esquecidas",
+        description: "Investigue o santuário antigo.",
+        target: 1
+    },
+    defeat_guardian: {
+        title: "O guardião da mata",
+        description: "Derrote o guardião das ruínas.",
+        target: 1
+    },
+    find_three_crystals: {
+        title: "Fragmentos antigos",
+        description: "Encontre os três cristais mágicos.",
+        target: 3
+    },
+    reach_castle: {
+        title: "O reino perdido",
+        description: "Encontre o castelo ancestral.",
+        target: 1
+    },
+    defeat_dragon: {
+        title: "A sombra do dragão",
+        description: "Derrote o dragão ancestral.",
+        target: 1
+    }
+};
+
+/* =========================================================
+   DOM HELPERS
+========================================================= */
+
+function element(id) {
+    return document.getElementById(id);
+}
+
+function setText(id, value) {
+    const node = element(id);
+    if (node) node.textContent = String(value);
+}
+
+function setWidth(id, value) {
+    const node = element(id);
+    if (node) {
+        node.style.width = `${Math.max(0, Math.min(100, value))}%`;
+    }
+}
+
+function showElement(id, visible, display = "block") {
+    const node = element(id);
+    if (node) node.style.display = visible ? display : "none";
+}
+
+function bindClick(id, callback) {
+    const node = element(id);
+    if (node) node.addEventListener("click", callback);
+}
+
+function showMessage(text, duration = 2.6) {
+    messageText = text;
+    messageTimer = duration;
+
+    const notification = element("v5Notification");
+    if (notification) {
+        notification.textContent = text;
+        notification.style.display = "block";
+        notification.style.opacity = "1";
+    }
+
+    const interaction = element("interaction");
+    if (interaction) {
+        interaction.textContent = text;
+        interaction.style.display = "block";
+    }
+}
+
+function hideMessage() {
+    const notification = element("v5Notification");
+    if (notification) notification.style.opacity = "0";
+
+    const interaction = element("interaction");
+    if (interaction) interaction.style.display = "none";
+}
+
+/* =========================================================
+   MOBILE CONTROLS
+========================================================= */
+
+const joystickElement = element("joystick");
+const joystickKnob = element("joystickKnob");
+
+if (joystickElement) {
+    joystickElement.addEventListener("pointerdown", event => {
+        joystickActive = true;
+        joystickPointerId = event.pointerId;
+
+        try {
+            joystickElement.setPointerCapture(event.pointerId);
+        } catch (_) {}
+
+        updateJoystick(event.clientX, event.clientY);
+    });
+
+    joystickElement.addEventListener("pointermove", event => {
+        if (!joystickActive || event.pointerId !== joystickPointerId) return;
+        updateJoystick(event.clientX, event.clientY);
+    });
+
+    joystickElement.addEventListener("pointerup", resetJoystick);
+    joystickElement.addEventListener("pointercancel", resetJoystick);
+    joystickElement.addEventListener("lostpointercapture", resetJoystick);
+}
+
+function updateJoystick(clientX, clientY) {
+    if (!joystickElement) return;
+
+    const rect = joystickElement.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+
+    let dx = clientX - centerX;
+    let dy = clientY - centerY;
+
+    const max = Math.max(1, rect.width / 2 - 28);
+    const len = Math.hypot(dx, dy);
+
+    if (len > max) {
+        dx = dx / len * max;
+        dy = dy / len * max;
+    }
+
+    joystickX = dx / max;
+    joystickY = dy / max;
+
+    if (joystickKnob) {
+        joystickKnob.style.transform =
+            `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    }
+}
+
+function resetJoystick() {
+    joystickActive = false;
+    joystickPointerId = null;
+    joystickX = 0;
+    joystickY = 0;
+
+    if (joystickKnob) {
+        joystickKnob.style.transform = "translate(-50%, -50%)";
+    }
+}
+
+bindClick("interactButton", interact);
+bindClick("attackButton", attack);
+bindClick("dodgeButton", dodge);
+bindClick("inventoryButton", toggleInventory);
+bindClick("specialButton", castSpecial);
+bindClick("potionButton", usePotion);
+bindClick("eatButton", eatMushroom);
+bindClick("mapButton", toggleMap);
+bindClick("craftCampfire", () => craftItem("campfire"));
+bindClick("craftAxe", () => craftItem("axe"));
+bindClick("craftSword", () => craftItem("sword"));
+bindClick("craftPotion", () => craftItem("potion"));
+bindClick("closeInventory", () => {
+    if (inventoryOpen) toggleInventory();
+});
+bindClick("closeMap", () => {
+    worldState.mapOpen = false;
+    showElement("mapPanel", false);
+});
+
+function getMovementInput() {
+    let x = joystickX;
+    let y = joystickY;
+
+    if (keys.w || keys.arrowup) y -= 1;
+    if (keys.s || keys.arrowdown) y += 1;
+    if (keys.a || keys.arrowleft) x -= 1;
+    if (keys.d || keys.arrowright) x += 1;
+
+    const length = Math.hypot(x, y);
+
+    if (length > 1) {
+        x /= length;
+        y /= length;
+    }
+
+    return { x, y };
+}
+
+/* =========================================================
+   QUEST SYSTEM
+========================================================= */
+
+function setQuest(id) {
+    if (!QUEST_DATA[id]) return;
+
+    quests.active = id;
+    quests.progress[id] = 0;
+    updateQuestUI();
+
+    showMessage("Nova missão: " + QUEST_DATA[id].title, 3.5);
+}
+
+function advanceQuest(id, amount = 1) {
+    if (quests.active !== id) return;
+
+    quests.progress[id] = (quests.progress[id] || 0) + amount;
+
+    if (quests.progress[id] >= QUEST_DATA[id].target) {
+        completeQuest(id);
+    }
+
+    updateQuestUI();
+}
+
+function completeQuest(id) {
+    if (quests.completed.includes(id)) return;
+
+    quests.completed.push(id);
+    progression.xp += 35;
+    progression.gold += 12;
+    showMessage("Missão concluída: " + QUEST_DATA[id].title, 3.5);
+
+    checkLevelUp();
+
+    const sequence = {
+        first_mushroom: "return_shelter",
+        return_shelter: "meet_elder",
+        meet_elder: "gather_supplies",
+        gather_supplies: "investigate_ruins",
+        investigate_ruins: "defeat_guardian",
+        defeat_guardian: "find_three_crystals",
+        find_three_crystals: "reach_castle",
+        reach_castle: "defeat_dragon"
+    };
+
+    const next = sequence[id];
+
+    if (next) {
+        setTimeoutSafe(() => {
+            if (!worldState.gameOver) setQuest(next);
+        }, 1500);
+    } else if (id === "defeat_dragon") {
+        worldState.ending = playerClass.selected || "wanderer";
+        showEnding();
+    }
+
+    updateHUD();
+    updateQuestUI();
+}
+
+function setTimeoutSafe(callback, delay) {
+    window.setTimeout(callback, delay);
+}
+
+function updateQuestUI() {
+    const quest = QUEST_DATA[quests.active];
+
+    if (!quest) {
+        setText("questText", "Explore o mundo e descubra seus segredos.");
+        return;
+    }
+
+    const progress = quests.progress[quests.active] || 0;
+    setText(
+        "questText",
+        `${quest.description}${quest.target > 1 ? ` (${Math.min(progress, quest.target)}/${quest.target})` : ""}`
+    );
+}
+
+function updateQuest() {
+    if (quests.active === "return_shelter") {
+        if (insideShelter(player.x, player.y, 10)) {
+            advanceQuest("return_shelter");
         }
     }
 
-    if (type === "wood") {
-
-        resources.wood++;
-
-        showMessage(
-            "Madeira coletada."
-        );
+    if (quests.active === "gather_supplies") {
+        if (resources.wood >= 5 && resources.stone >= 3) {
+            advanceQuest("gather_supplies");
+        }
     }
 
-    if (type === "stone") {
+    if (quests.active === "find_three_crystals") {
+        const found = crystals.filter(crystal => crystal.collected).length;
+        quests.progress.find_three_crystals = found;
 
-        resources.stone++;
-
-        showMessage(
-            "Pedra coletada."
-        );
+        if (found >= 3) {
+            completeQuest("find_three_crystals");
+        }
     }
 
-    for (let i = 0; i < 10; i++) {
+    updateQuestUI();
+}
 
+/* =========================================================
+   PLAYER CLASS
+========================================================= */
+
+function chooseClass(type) {
+    if (!CLASS_INFO[type]) return;
+
+    playerClass.selected = type;
+    const info = CLASS_INFO[type];
+
+    player.maxHp = info.hp;
+    player.hp = info.hp;
+    player.maxStamina = info.stamina;
+    player.stamina = info.stamina;
+    player.speed = info.speed;
+    playerClass.maxMana = info.mana;
+    playerClass.mana = info.mana;
+
+    worldState.classMenuOpen = false;
+    showElement("classSelection", false);
+
+    setText("v5Class", info.name);
+    showMessage("Você escolheu o caminho: " + info.name, 3);
+    updateHUD();
+}
+
+bindClick("chooseWarrior", () => chooseClass("warrior"));
+bindClick("chooseMage", () => chooseClass("mage"));
+bindClick("chooseRogue", () => chooseClass("rogue"));
+
+function openClassSelection() {
+    worldState.classMenuOpen = true;
+    showElement("classSelection", true, "flex");
+}
+
+function applyClassBonus(baseDamage) {
+    const type = playerClass.selected;
+    if (!type) return baseDamage;
+
+    const info = CLASS_INFO[type];
+    const strength = playerClass.skills.strength || 0;
+
+    return baseDamage * info.damage * (1 + strength * 0.08);
+}
+
+/* =========================================================
+   XP AND LEVELING
+========================================================= */
+
+function gainXP(amount) {
+    progression.xp += amount;
+    showFloatingText(player.x, player.y - 25, `+${amount} XP`, "#c8d8f4");
+    checkLevelUp();
+    updateHUD();
+}
+
+function checkLevelUp() {
+    while (progression.xp >= progression.xpToNext) {
+        progression.xp -= progression.xpToNext;
+        progression.level++;
+        progression.skillPoints++;
+        progression.xpToNext = Math.floor(progression.xpToNext * 1.35);
+
+        player.maxHp += 5;
+        player.hp = Math.min(player.maxHp, player.hp + 20);
+        player.maxStamina += 3;
+        player.stamina = player.maxStamina;
+        playerClass.maxMana += 5;
+        playerClass.mana = playerClass.maxMana;
+
+        showMessage(`Nível ${progression.level}! Você ganhou um ponto de habilidade.`, 3.5);
+
+        for (let i = 0; i < 24; i++) {
+            particles.push({
+                x: player.x,
+                y: player.y,
+                vx: random(-90, 90),
+                vy: random(-100, 20),
+                life: random(0.5, 1.1),
+                maxLife: 1.1,
+                size: random(2, 5),
+                color: "#d9d89a"
+            });
+        }
+    }
+}
+
+function spendSkillPoint(skill) {
+    if (progression.skillPoints <= 0) {
+        showMessage("Você não tem pontos de habilidade.");
+        return;
+    }
+
+    if (!(skill in playerClass.skills)) return;
+
+    playerClass.skills[skill]++;
+    progression.skillPoints--;
+
+    showMessage(`Habilidade aprimorada: ${skill}.`);
+    updateHUD();
+}
+
+/* =========================================================
+   SURVIVAL: HUNGER AND THIRST
+========================================================= */
+
+function updateSurvival(dt) {
+    survival.hungerTimer += dt;
+    survival.thirstTimer += dt;
+    survivalDamageTimer += dt;
+
+    if (survival.hungerTimer >= 8) {
+        survival.hungerTimer = 0;
+        survival.hunger = Math.max(0, survival.hunger - 0.7);
+    }
+
+    if (survival.thirstTimer >= 6) {
+        survival.thirstTimer = 0;
+        survival.thirst = Math.max(0, survival.thirst - 0.9);
+    }
+
+    if (
+        (survival.hunger <= 0 || survival.thirst <= 0) &&
+        survivalDamageTimer >= 3
+    ) {
+        survivalDamageTimer = 0;
+        damagePlayer(2);
+        showMessage("Você precisa comer e beber!");
+    }
+
+    if (survival.hunger > 0 && survival.thirst > 0) {
+        if (player.hp < player.maxHp) {
+            player.hp = Math.min(player.maxHp, player.hp + dt * 0.25);
+        }
+    }
+}
+
+function eatMushroom() {
+    if (resources.mushroom <= 0) {
+        showMessage("Você não tem cogumelos para comer.");
+        return;
+    }
+
+    resources.mushroom--;
+    survival.hunger = Math.min(100, survival.hunger + 24);
+    player.hp = Math.min(player.maxHp, player.hp + 5);
+
+    showMessage("Você comeu um cogumelo.");
+    updateHUD();
+    updateInventoryUI();
+}
+
+function drinkWater() {
+    survival.thirst = Math.min(100, survival.thirst + 35);
+    showMessage("Você bebeu água fresca.");
+    updateHUD();
+}
+
+function usePotion() {
+    if (craftedItems.potion <= 0) {
+        showMessage("Você não possui poções.");
+        return;
+    }
+
+    craftedItems.potion--;
+    player.hp = Math.min(player.maxHp, player.hp + 35);
+    playerClass.mana = Math.min(playerClass.maxMana, playerClass.mana + 20);
+
+    showMessage("Poção utilizada.");
+    createCraftParticles(player.x, player.y);
+    updateHUD();
+    updateInventoryUI();
+}
+
+/* =========================================================
+   SPECIAL ABILITIES
+========================================================= */
+
+function castSpecial() {
+    if (inventoryOpen || worldState.paused || worldState.gameOver) return;
+    if (playerClass.specialCooldown > 0) return;
+
+    const type = playerClass.selected || "warrior";
+
+    if (type === "mage") {
+        castMagicBurst();
+    } else if (type === "rogue") {
+        rogueDash();
+    } else {
+        warriorStrike();
+    }
+}
+
+function warriorStrike() {
+    if (player.stamina < 20) {
+        showMessage("Você não tem energia suficiente.");
+        return;
+    }
+
+    player.stamina -= 20;
+    playerClass.specialCooldown = 5;
+    camera.shake = 10;
+
+    let hitCount = 0;
+
+    for (const enemy of enemies) {
+        if (enemy.dead) continue;
+
+        const d = distance(player, enemy);
+
+        if (d <= 115) {
+            enemy.hp -= applyClassBonus(38);
+            enemy.hitTimer = 0.35;
+
+            const dx = enemy.x - player.x;
+            const dy = enemy.y - player.y;
+            const len = Math.max(1, Math.hypot(dx, dy));
+
+            enemy.x += dx / len * 45;
+            enemy.y += dy / len * 45;
+
+            createHitParticles(enemy.x, enemy.y);
+            hitCount++;
+
+            if (enemy.hp <= 0) killEnemy(enemy);
+        }
+    }
+
+    for (let i = 0; i < 30; i++) {
         particles.push({
-            x: obj.x,
-            y: obj.y,
-
-            vx: random(-70, 70),
-            vy: random(-100, 20),
-
-            life: random(.3, .7),
-            maxLife: .7,
-
-            size: random(2, 5),
-
-            type: "collect"
+            x: player.x + random(-60, 60),
+            y: player.y + random(-60, 60),
+            vx: random(-120, 120),
+            vy: random(-120, 120),
+            life: random(0.25, 0.6),
+            maxLife: 0.6,
+            size: random(3, 6),
+            color: "#d9b36c"
         });
+    }
+
+    showMessage(hitCount ? "Golpe poderoso!" : "Golpe poderoso!");
+}
+
+function castMagicBurst() {
+    if (playerClass.mana < 25) {
+        showMessage("Mana insuficiente.");
+        return;
+    }
+
+    playerClass.mana -= 25;
+    playerClass.specialCooldown = 3.5;
+
+    spells.push({
+        x: player.x + player.dirX * 28,
+        y: player.y + player.dirY * 28,
+        vx: player.dirX * 320,
+        vy: player.dirY * 320,
+        radius: 12,
+        damage: applyClassBonus(34),
+        life: 1.8,
+        color: "#b99cff"
+    });
+
+    showMessage("Orbe arcano lançado!");
+}
+
+function rogueDash() {
+    if (player.stamina < 15) {
+        showMessage("Energia insuficiente.");
+        return;
+    }
+
+    player.stamina -= 15;
+    playerClass.specialCooldown = 3;
+    player.invulnerable = Math.max(player.invulnerable, 0.6);
+
+    const move = getMovementInput();
+    const dx = move.x || player.dirX;
+    const dy = move.y || player.dirY;
+
+    const targetX = player.x + dx * 180;
+    const targetY = player.y + dy * 180;
+
+    if (!isBlocked(targetX, targetY)) {
+        player.x = targetX;
+        player.y = targetY;
+    } else {
+        player.x += dx * 60;
+        player.y += dy * 60;
+    }
+
+    camera.shake = 4;
+
+    for (let i = 0; i < 18; i++) {
+        particles.push({
+            x: player.x,
+            y: player.y,
+            vx: random(-70, 70),
+            vy: random(-70, 70),
+            life: random(0.15, 0.4),
+            maxLife: 0.4,
+            size: random(2, 4),
+            color: "#91d77c"
+        });
+    }
+
+    showMessage("Passo das sombras!");
+}
+
+/* =========================================================
+   ENEMY DEATH AND REWARDS
+========================================================= */
+
+function killEnemy(enemy) {
+    if (enemy.dead) return;
+
+    enemy.dead = true;
+    progression.kills++;
+
+    resources.wood += randomInt(0, 2);
+    progression.gold += randomInt(1, 4);
+    gainXP(enemy.type === "boss" ? 150 : 20);
+
+    createDeathParticles(enemy.x, enemy.y);
+    showFloatingText(enemy.x, enemy.y - 20, "+XP", "#d5dba7");
+
+    if (enemy.type === "boss") {
+        progression.bossesDefeated++;
+        activeBoss = null;
+        advanceQuest("defeat_guardian");
+        advanceQuest("defeat_dragon");
+        showMessage("Chefe derrotado!", 3);
     }
 
     updateHUD();
@@ -928,433 +1423,926 @@ function collectObject(obj, type) {
 }
 
 /* =========================================================
-   DAMAGE
+   SPELL UPDATE
 ========================================================= */
 
-function damagePlayer(amount, enemy) {
+function updateSpells(dt) {
+    for (let i = spells.length - 1; i >= 0; i--) {
+        const spell = spells[i];
 
-    if (player.invulnerable > 0) return;
+        spell.x += spell.vx * dt;
+        spell.y += spell.vy * dt;
+        spell.life -= dt;
 
-    player.hp -= amount;
+        for (const enemy of enemies) {
+            if (enemy.dead) continue;
 
-    player.hurtTimer = .2;
+            if (Math.hypot(spell.x - enemy.x, spell.y - enemy.y) <
+                spell.radius + enemy.radius) {
+                enemy.hp -= spell.damage;
+                enemy.hitTimer = 0.2;
+                createHitParticles(enemy.x, enemy.y);
 
-    camera.shake = 7;
+                if (enemy.hp <= 0) killEnemy(enemy);
 
-    if (enemy) {
+                spell.life = 0;
+                break;
+            }
+        }
 
-        const dx =
-            player.x - enemy.x;
+        if (spell.life <= 0) {
+            for (let j = 0; j < 8; j++) {
+                particles.push({
+                    x: spell.x,
+                    y: spell.y,
+                    vx: random(-60, 60),
+                    vy: random(-60, 60),
+                    life: random(0.15, 0.4),
+                    maxLife: 0.4,
+                    size: random(2, 5),
+                    color: spell.color
+                });
+            }
 
-        const dy =
-            player.y - enemy.y;
+            spells.splice(i, 1);
+        }
+    }
+}
 
-        const d =
-            Math.hypot(dx, dy) || 1;
+/* =========================================================
+   WEATHER
+========================================================= */
 
-        player.x +=
-            dx / d * 18;
+function updateWeather(dt) {
+    weather.timer += dt;
 
-        player.y +=
-            dy / d * 18;
+    if (weather.timer >= weather.duration) {
+        weather.timer = 0;
+
+        const choices = ["clear", "clear", "fog", "rain", "wind"];
+        weather.current = choices[randomInt(0, choices.length - 1)];
+
+        weather.intensity = weather.current === "clear" ? 0 : random(0.2, 0.7);
+        weather.wind = weather.current === "wind" || weather.current === "rain"
+            ? random(-1, 1)
+            : 0;
+
+        showMessage({
+            clear: "O céu está limpo.",
+            fog: "Uma névoa envolve a floresta.",
+            rain: "A chuva começou a cair.",
+            wind: "O vento sopra entre as árvores."
+        }[weather.current]);
+    }
+}
+
+function drawWeather() {
+    if (weather.current === "fog") {
+        ctx.fillStyle = `rgba(175, 190, 178, ${0.07 + weather.intensity * 0.08})`;
+        ctx.fillRect(0, 0, W, H);
     }
 
-    for (let i = 0; i < 8; i++) {
+    if (weather.current === "rain") {
+        ctx.save();
+        ctx.strokeStyle = `rgba(180, 200, 220, ${0.25 + weather.intensity * 0.25})`;
+        ctx.lineWidth = 1;
 
-        particles.push({
-            x: player.x,
-            y: player.y,
+        for (let i = 0; i < 100; i++) {
+            const x = (i * 97 + gameTime * 280) % (W + 100);
+            const y = (i * 61 + gameTime * 480) % (H + 100);
 
-            vx: random(-90, 90),
-            vy: random(-90, 90),
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x - 5, y + 13);
+            ctx.stroke();
+        }
 
-            life: random(.2, .5),
-            maxLife: .5,
+        ctx.restore();
+    }
 
-            size: random(2, 5),
+    if (weather.current === "wind") {
+        ctx.save();
+        ctx.strokeStyle = "rgba(200,215,190,0.13)";
+        ctx.lineWidth = 1;
 
-            type: "damage"
+        for (let i = 0; i < 20; i++) {
+            const x = (i * 133 + gameTime * weather.wind * 120) % W;
+            const y = (i * 71) % H;
+
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + 22, y - 2);
+            ctx.stroke();
+        }
+
+        ctx.restore();
+    }
+}
+```
+
+```javascript
+/* =========================================================
+   NPCS, ANIMAIS E ESTRUTURAS
+========================================================= */
+
+function createNPC(name, x, y, role, color = "#b6c6a1") {
+    return {
+        name,
+        x,
+        y,
+        role,
+        color,
+        radius: 13,
+        interactRadius: 65,
+        wanderTimer: random(1, 4),
+        dirX: 0,
+        dirY: 0,
+        moving: false
+    };
+}
+
+function createWorldEntities() {
+    npcs.length = 0;
+    animals.length = 0;
+    chests.length = 0;
+    crystals.length = 0;
+    shrines.length = 0;
+    fireflies.length = 0;
+    structures.length = 0;
+
+    npcs.push(
+        createNPC("Ancião Edrin", 2110, 1140, "elder", "#b6c6e0"),
+        createNPC("Lia", 1710, 1280, "friend", "#d8a8b5"),
+        createNPC("Ferreiro Bram", 2440, 1980, "blacksmith", "#c4a17e"),
+        createNPC("Maga Selene", 2820, 740, "mage", "#b6a0e8"),
+        createNPC("Mercador", 2210, 2090, "merchant", "#d7c17e")
+    );
+
+    for (let i = 0; i < 18; i++) {
+        animals.push({
+            x: random(120, world.width - 120),
+            y: random(120, world.height - 120),
+            radius: 8,
+            speed: random(35, 65),
+            type: Math.random() < 0.5 ? "rabbit" : "deer",
+            dirX: random(-1, 1),
+            dirY: random(-1, 1),
+            wanderTimer: random(1, 4),
+            alive: true
         });
     }
 
-    if (player.hp <= 0) {
+    for (let i = 0; i < 12; i++) {
+        chests.push({
+            x: random(150, world.width - 150),
+            y: random(150, world.height - 150),
+            radius: 13,
+            opened: false
+        });
+    }
 
-        player.hp = player.maxHp;
-        player.stamina = player.maxStamina;
+    const crystalLocations = [
+        { x: 700, y: 500 },
+        { x: 3000, y: 700 },
+        { x: 2600, y: 2250 }
+    ];
 
-        player.x = shelter.x;
-        player.y = shelter.y + 50;
+    for (const point of crystalLocations) {
+        crystals.push({
+            x: point.x,
+            y: point.y,
+            radius: 13,
+            collected: false,
+            pulse: random(0, Math.PI * 2)
+        });
+    }
 
-        showMessage(
-            "Você acordou novamente no abrigo."
+    shrines.push(
+        { x: 620, y: 650, type: "forest", activated: false },
+        { x: 3030, y: 620, type: "arcane", activated: false },
+        { x: 2600, y: 2210, type: "ancient", activated: false }
+    );
+
+    structures.push(
+        { x: 760, y: 450, type: "ruins", width: 150, height: 100 },
+        { x: 2950, y: 650, type: "tower", width: 100, height: 150 },
+        { x: 2700, y: 2200, type: "castle", width: 260, height: 210 },
+        { x: 2380, y: 1930, type: "village", width: 200, height: 150 }
+    );
+
+    for (let i = 0; i < 45; i++) {
+        fireflies.push({
+            x: random(0, world.width),
+            y: random(0, world.height),
+            phase: random(0, Math.PI * 2),
+            speed: random(0.7, 1.8),
+            radius: random(1, 2.5)
+        });
+    }
+}
+
+/* =========================================================
+   NPC MOVEMENT AND INTERACTION
+========================================================= */
+
+function updateNPCs(dt) {
+    for (const npc of npcs) {
+        const distanceToPlayer = Math.hypot(
+            player.x - npc.x,
+            player.y - npc.y
         );
+
+        if (distanceToPlayer < 160) {
+            npc.moving = false;
+            continue;
+        }
+
+        npc.wanderTimer -= dt;
+
+        if (npc.wanderTimer <= 0) {
+            npc.wanderTimer = random(2, 5);
+            npc.dirX = random(-1, 1);
+            npc.dirY = random(-1, 1);
+
+            const length = Math.hypot(npc.dirX, npc.dirY) || 1;
+            npc.dirX /= length;
+            npc.dirY /= length;
+        }
+
+        const nx = npc.x + npc.dirX * 16 * dt;
+        const ny = npc.y + npc.dirY * 16 * dt;
+
+        if (!isBlocked(nx, npc.y, npc.radius)) npc.x = nx;
+        if (!isBlocked(npc.x, ny, npc.radius)) npc.y = ny;
+
+        npc.moving = Math.abs(npc.dirX) + Math.abs(npc.dirY) > 0.1;
+    }
+}
+
+function interactWithNPC(npc) {
+    if (npc.role === "elder") {
+        openDialogue(
+            npc.name,
+            "A floresta está mudando. Os cogumelos antigos despertaram algo que deveria permanecer adormecido.",
+            [
+                {
+                    text: "Quero entender o que está acontecendo.",
+                    action: () => {
+                        closeDialogue();
+                        if (!quests.completed.includes("meet_elder")) {
+                            advanceQuest("meet_elder");
+                        }
+                        openClassSelection();
+                    }
+                },
+                {
+                    text: "Você pode me ajudar?",
+                    action: () => {
+                        closeDialogue();
+                        progression.gold += 5;
+                        showMessage("O ancião entregou 5 moedas.");
+                        updateHUD();
+                    }
+                },
+                {
+                    text: "Preciso ir.",
+                    action: closeDialogue
+                }
+            ]
+        );
+        return;
+    }
+
+    if (npc.role === "friend") {
+        openDialogue(
+            npc.name,
+            "Você viu aquela luz entre as árvores? Acho que não estamos mais no mesmo lugar de antes.",
+            [
+                {
+                    text: "Vamos investigar juntos.",
+                    action: () => {
+                        closeDialogue();
+                        gainXP(10);
+                        showMessage("Lia deseja explorar a floresta com você.");
+                    }
+                },
+                {
+                    text: "Fique aqui por enquanto.",
+                    action: () => {
+                        closeDialogue();
+                        showMessage("Lia ficará perto do abrigo.");
+                    }
+                }
+            ]
+        );
+        return;
+    }
+
+    if (npc.role === "merchant") {
+        openDialogue(
+            npc.name,
+            "Tenho alguns suprimentos. O que deseja comprar?",
+            [
+                {
+                    text: "Comprar poção — 12 moedas",
+                    action: () => {
+                        closeDialogue();
+                        if (progression.gold >= 12) {
+                            progression.gold -= 12;
+                            craftedItems.potion++;
+                            showMessage("Você comprou uma poção.");
+                        } else {
+                            showMessage("Você não tem moedas suficientes.");
+                        }
+                        updateHUD();
+                        updateInventoryUI();
+                    }
+                },
+                {
+                    text: "Comprar comida — 5 moedas",
+                    action: () => {
+                        closeDialogue();
+                        if (progression.gold >= 5) {
+                            progression.gold -= 5;
+                            survival.hunger = Math.min(100, survival.hunger + 40);
+                            showMessage("Você comprou provisões.");
+                        } else {
+                            showMessage("Você não tem moedas suficientes.");
+                        }
+                        updateHUD();
+                    }
+                },
+                {
+                    text: "Sair",
+                    action: closeDialogue
+                }
+            ]
+        );
+        return;
+    }
+
+    if (npc.role === "blacksmith") {
+        openDialogue(
+            npc.name,
+            "Uma arma bem feita pode salvar sua vida. Posso melhorar sua espada por 20 moedas.",
+            [
+                {
+                    text: "Melhorar espada — 20 moedas",
+                    action: () => {
+                        closeDialogue();
+
+                        if (progression.gold < 20) {
+                            showMessage("Você precisa de 20 moedas.");
+                            return;
+                        }
+
+                        progression.gold -= 20;
+                        equipment.swordLevel++;
+                        showMessage("Sua espada foi aprimorada!");
+                        updateHUD();
+                    }
+                },
+                {
+                    text: "Sair",
+                    action: closeDialogue
+                }
+            ]
+        );
+        return;
+    }
+
+    if (npc.role === "mage") {
+        openDialogue(
+            npc.name,
+            "A magia responde à intenção. Não desperdice sua mana com medo.",
+            [
+                {
+                    text: "Aprender magia — 15 moedas",
+                    action: () => {
+                        closeDialogue();
+
+                        if (progression.gold < 15) {
+                            showMessage("Você precisa de 15 moedas.");
+                            return;
+                        }
+
+                        progression.gold -= 15;
+                        playerClass.skills.magic++;
+                        playerClass.maxMana += 10;
+                        playerClass.mana = playerClass.maxMana;
+                        showMessage("Seu conhecimento mágico aumentou.");
+                        updateHUD();
+                    }
+                },
+                {
+                    text: "Sair",
+                    action: closeDialogue
+                }
+            ]
+        );
+    }
+}
+
+function interactWithNearestEntity() {
+    let nearest = null;
+    let nearestDistance = 78;
+
+    for (const npc of npcs) {
+        const d = distance(player, npc);
+        if (d < nearestDistance) {
+            nearest = { type: "npc", object: npc };
+            nearestDistance = d;
+        }
+    }
+
+    for (const chest of chests) {
+        if (chest.opened) continue;
+        const d = distance(player, chest);
+
+        if (d < nearestDistance) {
+            nearest = { type: "chest", object: chest };
+            nearestDistance = d;
+        }
+    }
+
+    for (const shrine of shrines) {
+        if (shrine.activated) continue;
+        const d = distance(player, shrine);
+
+        if (d < nearestDistance) {
+            nearest = { type: "shrine", object: shrine };
+            nearestDistance = d;
+        }
+    }
+
+    for (const crystal of crystals) {
+        if (crystal.collected) continue;
+        const d = distance(player, crystal);
+
+        if (d < nearestDistance) {
+            nearest = { type: "crystal", object: crystal };
+            nearestDistance = d;
+        }
+    }
+
+    if (!nearest) return false;
+
+    if (nearest.type === "npc") {
+        interactWithNPC(nearest.object);
+    } else if (nearest.type === "chest") {
+        openChest(nearest.object);
+    } else if (nearest.type === "shrine") {
+        activateShrine(nearest.object);
+    } else if (nearest.type === "crystal") {
+        collectCrystal(nearest.object);
+    }
+
+    return true;
+}
+
+/* =========================================================
+   DIALOGUE
+========================================================= */
+
+function openDialogue(speaker, text, choices = []) {
+    dialogue = { speaker, text, choices };
+    worldState.dialogueOpen = true;
+
+    setText("dialogueSpeaker", speaker);
+    setText("dialogueText", text);
+
+    const panel = element("dialoguePanel");
+    const choiceContainer = element("dialogueChoices");
+
+    if (panel) panel.style.display = "block";
+
+    if (choiceContainer) {
+        choiceContainer.innerHTML = "";
+
+        for (const choice of choices) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.textContent = choice.text;
+
+            button.addEventListener("click", () => {
+                if (typeof choice.action === "function") {
+                    choice.action();
+                }
+            });
+
+            choiceContainer.appendChild(button);
+        }
+    }
+}
+
+function closeDialogue() {
+    dialogue = null;
+    worldState.dialogueOpen = false;
+    showElement("dialoguePanel", false);
+}
+
+function updateDialogueInput() {
+    if (worldState.dialogueOpen && keys.escape) {
+        closeDialogue();
+        keys.escape = false;
+    }
+}
+
+/* =========================================================
+   CHESTS, CRYSTALS AND SHRINES
+========================================================= */
+
+function openChest(chest) {
+    if (chest.opened) return;
+
+    chest.opened = true;
+
+    const goldFound = randomInt(4, 15);
+    progression.gold += goldFound;
+
+    if (Math.random() < 0.45) {
+        craftedItems.potion++;
+        showMessage(`Baú aberto: ${goldFound} moedas e uma poção!`);
+    } else {
+        const woodFound = randomInt(2, 6);
+        resources.wood += woodFound;
+        showMessage(`Baú aberto: ${goldFound} moedas e ${woodFound} madeiras.`);
+    }
+
+    gainXP(12);
+    createCollectionParticles(chest.x, chest.y);
+    updateHUD();
+    updateInventoryUI();
+}
+
+function collectCrystal(crystal) {
+    if (crystal.collected) return;
+
+    crystal.collected = true;
+    progression.gold += 10;
+    playerClass.maxMana += 5;
+    playerClass.mana = playerClass.maxMana;
+
+    gainXP(35);
+    showMessage("Cristal ancestral encontrado!");
+    createCraftParticles(crystal.x, crystal.y);
+    advanceQuest("find_three_crystals");
+    updateHUD();
+}
+
+function activateShrine(shrine) {
+    if (shrine.activated) return;
+
+    shrine.activated = true;
+    player.hp = player.maxHp;
+    player.stamina = player.maxStamina;
+    playerClass.mana = playerClass.maxMana;
+    survival.hunger = Math.min(100, survival.hunger + 15);
+    survival.thirst = Math.min(100, survival.thirst + 15);
+
+    gainXP(20);
+    showMessage("O santuário restaurou suas forças.");
+    createCraftParticles(shrine.x, shrine.y);
+    updateHUD();
+}
+
+/* =========================================================
+   ANIMALS
+========================================================= */
+
+function updateAnimals(dt) {
+    for (const animal of animals) {
+        if (!animal.alive) continue;
+
+        const d = distance(player, animal);
+
+        if (d < 150) {
+            const dx = animal.x - player.x;
+            const dy = animal.y - player.y;
+            const length = Math.max(1, Math.hypot(dx, dy));
+
+            animal.dirX = dx / length;
+            animal.dirY = dy / length;
+            animal.wanderTimer = 1;
+        } else {
+            animal.wanderTimer -= dt;
+
+            if (animal.wanderTimer <= 0) {
+                animal.wanderTimer = random(1, 4);
+                animal.dirX = random(-1, 1);
+                animal.dirY = random(-1, 1);
+
+                const length = Math.hypot(animal.dirX, animal.dirY) || 1;
+                animal.dirX /= length;
+                animal.dirY /= length;
+            }
+        }
+
+        const nx = animal.x + animal.dirX * animal.speed * dt;
+        const ny = animal.y + animal.dirY * animal.speed * dt;
+
+        if (!isBlocked(nx, animal.y, animal.radius)) animal.x = nx;
+        if (!isBlocked(animal.x, ny, animal.radius)) animal.y = ny;
+    }
+}
+
+/* =========================================================
+   FIRELIES
+========================================================= */
+
+function updateFireflies(dt) {
+    for (const fly of fireflies) {
+        fly.phase += dt * fly.speed;
+    }
+}
+
+/* =========================================================
+   DAY AND NIGHT
+========================================================= */
+
+function updateDayNight(dt) {
+    worldTime += dt;
+
+    const cycleLength = 180;
+    const cyclePosition = (worldTime % cycleLength) / cycleLength;
+
+    day = Math.floor(worldTime / cycleLength) + 1;
+
+    const isNight = cyclePosition > 0.68 || cyclePosition < 0.12;
+
+    if (isNight && Math.random() < dt * 0.018) {
+        spawnNightEnemy();
     }
 
     updateHUD();
 }
 
+function isNightTime() {
+    const cyclePosition = (worldTime % 180) / 180;
+    return cyclePosition > 0.68 || cyclePosition < 0.12;
+}
+
+function drawNightOverlay() {
+    const cyclePosition = (worldTime % 180) / 180;
+    let darkness = 0;
+
+    if (cyclePosition > 0.62 && cyclePosition < 0.82) {
+        darkness = (cyclePosition - 0.62) / 0.2 * 0.55;
+    } else if (cyclePosition >= 0.82) {
+        darkness = 0.55;
+    } else if (cyclePosition < 0.12) {
+        darkness = 0.55 * (1 - cyclePosition / 0.12);
+    }
+
+    if (darkness <= 0) return;
+
+    ctx.save();
+    ctx.fillStyle = `rgba(5, 8, 22, ${darkness})`;
+    ctx.fillRect(0, 0, W, H);
+
+    const screenX = player.x - camera.x + W / 2;
+    const screenY = player.y - camera.y + H / 2;
+
+    const gradient = ctx.createRadialGradient(
+        screenX, screenY, 25,
+        screenX, screenY, 240
+    );
+
+    gradient.addColorStop(0, "rgba(0,0,0,0)");
+    gradient.addColorStop(0.55, "rgba(0,0,0,0.1)");
+    gradient.addColorStop(1, `rgba(0,0,0,${Math.min(0.8, darkness + 0.1)})`);
+
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(screenX, screenY, 240, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalCompositeOperation = "source-over";
+
+    ctx.restore();
+}
+
 /* =========================================================
-   ENEMIES
+   NIGHT CREATURES
 ========================================================= */
 
-function updateEnemies(dt) {
+function spawnNightEnemy() {
+    if (enemies.filter(enemy => !enemy.dead).length >= 22) return;
 
-    for (const enemy of enemies) {
+    const angle = random(0, Math.PI * 2);
+    const spawnDistance = random(300, 450);
 
-        if (enemy.hp <= 0) continue;
+    const x = Math.max(
+        60,
+        Math.min(world.width - 60, player.x + Math.cos(angle) * spawnDistance)
+    );
 
-        enemy.hitTimer =
-            Math.max(0, enemy.hitTimer - dt);
+    const y = Math.max(
+        60,
+        Math.min(world.height - 60, player.y + Math.sin(angle) * spawnDistance)
+    );
 
-        enemy.attackCooldown -= dt;
-        enemy.wanderTimer -= dt;
+    enemies.push({
+        x,
+        y,
+        radius: 16,
+        hp: 45,
+        maxHp: 45,
+        speed: random(65, 85),
+        damage: 12,
+        attackCooldown: random(0, 1),
+        hitTimer: 0,
+        wanderTimer: 2,
+        wanderX: 0,
+        wanderY: 0,
+        dead: false,
+        type: "nightstalker"
+    });
+}
 
-        const dx =
-            player.x - enemy.x;
+/* =========================================================
+   BOSS SPAWNING
+========================================================= */
 
-        const dy =
-            player.y - enemy.y;
+function spawnBoss(type = "guardian") {
+    if (activeBoss && !activeBoss.dead) {
+        showMessage("Já existe um chefe nesta região.");
+        return;
+    }
 
-        const d =
-            Math.hypot(dx, dy);
+    const location = type === "dragon"
+        ? { x: 2820, y: 2200 }
+        : { x: 820, y: 520 };
 
-        if (d < 320) {
+    const boss = {
+        x: location.x,
+        y: location.y,
+        radius: type === "dragon" ? 38 : 29,
+        hp: type === "dragon" ? 1200 : 500,
+        maxHp: type === "dragon" ? 1200 : 500,
+        speed: type === "dragon" ? 68 : 52,
+        damage: type === "dragon" ? 25 : 18,
+        attackCooldown: 1.5,
+        hitTimer: 0,
+        wanderTimer: 2,
+        dead: false,
+        type: "boss",
+        bossKind: type,
+        specialTimer: 5
+    };
 
-            const nx =
-                dx / Math.max(d, 1);
+    enemies.push(boss);
+    activeBoss = boss;
 
-            const ny =
-                dy / Math.max(d, 1);
+    if (type === "dragon") {
+        showMessage("O dragão ancestral despertou!", 4);
+    } else {
+        showMessage("O guardião das ruínas apareceu!", 4);
+    }
+}
 
-            const nextX =
-                enemy.x +
-                nx *
-                enemy.speed *
-                dt;
+function updateBoss(enemy, dt) {
+    enemy.specialTimer -= dt;
 
-            const nextY =
-                enemy.y +
-                ny *
-                enemy.speed *
-                dt;
+    if (enemy.specialTimer <= 0) {
+        enemy.specialTimer = enemy.bossKind === "dragon" ? 4 : 5;
 
-            if (!isBlocked(
-                nextX,
-                enemy.y,
-                enemy.radius
-            )) {
-                enemy.x = nextX;
+        const radius = enemy.bossKind === "dragon" ? 190 : 125;
+
+        for (const target of [player]) {
+            if (distance(enemy, target) < radius) {
+                damagePlayer(enemy.damage);
             }
-
-            if (!isBlocked(
-                enemy.x,
-                nextY,
-                enemy.radius
-            )) {
-                enemy.y = nextY;
-            }
-
-            if (
-                d < 32 &&
-                enemy.attackCooldown <= 0
-            ) {
-
-                enemy.attackCooldown = 1.1;
-
-                damagePlayer(
-                    10,
-                    enemy
-                );
-            }
-
-        } else {
-
-            if (enemy.wanderTimer <= 0) {
-
-                enemy.wanderTimer =
-                    random(1, 4);
-
-                enemy.dirX =
-                    random(-1, 1);
-
-                enemy.dirY =
-                    random(-1, 1);
-
-                const len =
-                    Math.hypot(
-                        enemy.dirX,
-                        enemy.dirY
-                    );
-
-                if (len > 0) {
-
-                    enemy.dirX /= len;
-                    enemy.dirY /= len;
-                }
-            }
-
-            enemy.x +=
-                enemy.dirX *
-                enemy.speed *
-                .3 *
-                dt;
-
-            enemy.y +=
-                enemy.dirY *
-                enemy.speed *
-                .3 *
-                dt;
         }
 
-        enemy.x =
-            Math.max(
-                30,
-                Math.min(
-                    world.width - 30,
-                    enemy.x
-                )
-            );
+        for (let i = 0; i < 24; i++) {
+            particles.push({
+                x: enemy.x,
+                y: enemy.y,
+                vx: random(-150, 150),
+                vy: random(-150, 150),
+                life: random(0.3, 0.8),
+                maxLife: 0.8,
+                size: random(3, 7),
+                color: enemy.bossKind === "dragon" ? "#d76d4e" : "#a38ce0"
+            });
+        }
 
-        enemy.y =
-            Math.max(
-                30,
-                Math.min(
-                    world.height - 30,
-                    enemy.y
-                )
-            );
+        camera.shake = Math.max(camera.shake, 8);
     }
 }
+```
 
+```javascript
 /* =========================================================
-   PLAYER UPDATE
+   UPDATE LOOP
 ========================================================= */
 
-function updatePlayer(dt) {
+function updateGame(dt) {
+    if (worldState.paused || worldState.gameOver || !gameStarted) return;
 
-    player.attackCooldown =
-        Math.max(
-            0,
-            player.attackCooldown - dt
-        );
+    gameTime += dt;
+    ambientTimer += dt;
+    autosaveTimer += dt;
 
-    player.attackTimer =
-        Math.max(
-            0,
-            player.attackTimer - dt
-        );
-
-    player.dodgeCooldown =
-        Math.max(
-            0,
-            player.dodgeCooldown - dt
-        );
-
-    player.dodgeTimer =
-        Math.max(
-            0,
-            player.dodgeTimer - dt
-        );
-
-    player.invulnerable =
-        Math.max(
-            0,
-            player.invulnerable - dt
-        );
-
-    player.hurtTimer =
-        Math.max(
-            0,
-            player.hurtTimer - dt
-        );
-
-    if (V5.dialogue) return;
-
-    let moveX = 0;
-    let moveY = 0;
-
-    if (keys["w"] || keys["arrowup"])
-        moveY -= 1;
-
-    if (keys["s"] || keys["arrowdown"])
-        moveY += 1;
-
-    if (keys["a"] || keys["arrowleft"])
-        moveX -= 1;
-
-    if (keys["d"] || keys["arrowright"])
-        moveX += 1;
-
-    if (
-        Math.abs(joystick.x) > .05 ||
-        Math.abs(joystick.y) > .05
-    ) {
-
-        moveX = joystick.x;
-        moveY = joystick.y;
+    if (messageTimer > 0) {
+        messageTimer -= dt;
+        if (messageTimer <= 0) hideMessage();
     }
 
-    const len =
-        Math.hypot(moveX, moveY);
+    if (playerClass.specialCooldown > 0) {
+        playerClass.specialCooldown = Math.max(0, playerClass.specialCooldown - dt);
+    }
 
-    if (len > 1) {
+    if (attackComboTimer > 0) {
+        attackComboTimer -= dt;
+    } else {
+        attackCombo = 0;
+    }
 
-        moveX /= len;
-        moveY /= len;
+    updatePlayer(dt);
+    updateEnemies(dt);
+    updateNPCs(dt);
+    updateAnimals(dt);
+    updateSpells(dt);
+    updateParticles(dt);
+    updateSurvival(dt);
+    updateWeather(dt);
+    updateDayNight(dt);
+    updateFireflies(dt);
+    updateQuest();
+    updateCamera(dt);
+    updateFloatingTexts(dt);
+    updateWorldEvents(dt);
+    updateDialogueInput();
+
+    if (autosaveTimer >= 60) {
+        autosaveTimer = 0;
+        saveGame(true);
+    }
+
+    if (player.hp <= 0) {
+        player.hp = 0;
+        worldState.gameOver = true;
+        showGameOver();
     }
 
     if (
-        Math.abs(moveX) > .05 ||
-        Math.abs(moveY) > .05
+        quests.active === "investigate_ruins" &&
+        distance(player, { x: 760, y: 450 }) < 140
     ) {
-
-        player.dirX = moveX;
-        player.dirY = moveY;
-    }
-
-    const speed =
-        player.dodgeTimer > 0
-            ? player.speed * 2.8
-            : player.speed;
-
-    const nextX =
-        player.x +
-        moveX *
-        speed *
-        dt;
-
-    const nextY =
-        player.y +
-        moveY *
-        speed *
-        dt;
-
-    if (
-        !isBlocked(
-            nextX,
-            player.y,
-            player.radius
-        )
-    ) {
-        player.x = nextX;
-    }
-
-    if (
-        !isBlocked(
-            player.x,
-            nextY,
-            player.radius
-        )
-    ) {
-        player.y = nextY;
-    }
-
-    player.x =
-        Math.max(
-            30,
-            Math.min(
-                world.width - 30,
-                player.x
-            )
-        );
-
-    player.y =
-        Math.max(
-            30,
-            Math.min(
-                world.height - 30,
-                player.y
-            )
-        );
-
-    player.stamina =
-        Math.min(
-            player.maxStamina,
-            player.stamina + 24 * dt
-        );
-}
-
-/* =========================================================
-   QUEST ORIGINAL
-========================================================= */
-
-function updateQuest() {
-
-    if (
-        questStage === 1 &&
-        Math.abs(player.x - shelter.x) < 180 &&
-        Math.abs(player.y - shelter.y) < 150
-    ) {
-
-        questStage = 2;
-
-        showMessage(
-            "O abrigo parece diferente..."
-        );
-    }
-
-    if (
-        questStage >= 4 &&
-        questStage < 6
-    ) {
-
-        const found =
-            V5.ancientStones.filter(
-                stone => stone.discovered
-            ).length;
-
-        if (found >= 3) {
-
-            questStage = 6;
-
-            showMessage(
-                "Você descobriu o segredo das pedras antigas."
-            );
+        advanceQuest("investigate_ruins");
+        if (!worldState.bossSpawned) {
+            worldState.bossSpawned = true;
+            spawnBoss("guardian");
         }
     }
 
     if (
-        questStage === 6 &&
-        Math.abs(player.x - V5.elder.x) < 80 &&
-        Math.abs(player.y - V5.elder.y) < 80
+        quests.active === "reach_castle" &&
+        distance(player, { x: 2700, y: 2200 }) < 180
     ) {
+        advanceQuest("reach_castle");
 
-        if (!V5.questComplete) {
-
-            V5.questComplete = true;
-            questStage = 7;
-
-            V5.gold += 20;
-            resources.mushroom += 5;
-
-            V5.flash = 1;
-
-            showMessage(
-                "MISSÃO CONCLUÍDA — O Cogumelo que Sussurra"
-            );
+        if (!worldEvents.some(event => event.type === "dragonWarning")) {
+            worldEvents.push({
+                type: "dragonWarning",
+                timer: 3
+            });
         }
     }
-}
 
-/* =========================================================
-   DAY / NIGHT
-========================================================= */
-
-function updateDayNight(dt) {
-
-    worldTime += dt;
-
-    const cycle = 180;
-
-    if (worldTime >= cycle) {
-
-        worldTime -= cycle;
-
-        day++;
+    if (
+        quests.active === "defeat_dragon" &&
+        !activeBoss &&
+        !worldEvents.some(event => event.type === "dragonSpawned")
+    ) {
+        worldEvents.push({
+            type: "dragonSpawned",
+            timer: 2
+        });
     }
 
-    gameTime =
-        worldTime / cycle;
+    updateHUD();
+}
+
+function updateWorldEvents(dt) {
+    for (let i = worldEvents.length - 1; i >= 0; i--) {
+        const event = worldEvents[i];
+        event.timer -= dt;
+
+        if (event.timer > 0) continue;
+
+        if (event.type === "dragonWarning") {
+            showMessage("Um rugido ecoa sobre o castelo...", 4);
+        }
+
+        if (event.type === "dragonSpawned") {
+            spawnBoss("dragon");
+        }
+
+        worldEvents.splice(i, 1);
+    }
 }
 
 /* =========================================================
@@ -1362,6626 +2350,2157 @@ function updateDayNight(dt) {
 ========================================================= */
 
 function updateCamera(dt) {
+    const smoothing = Math.min(1, dt * 5);
 
-    camera.x +=
-        (player.x - camera.x) *
-        Math.min(1, dt * 6);
+    camera.x += (player.x - camera.x) * smoothing;
+    camera.y += (player.y - camera.y) * smoothing;
+    camera.shake = Math.max(0, camera.shake - dt * 20);
 
-    camera.y +=
-        (player.y - camera.y) *
-        Math.min(1, dt * 6);
+    camera.x = Math.max(W / 2, Math.min(world.width - W / 2, camera.x));
+    camera.y = Math.max(H / 2, Math.min(world.height - H / 2, camera.y));
+}
 
-    camera.x =
-        Math.max(
-            W / 2,
-            Math.min(
-                world.width - W / 2,
-                camera.x
-            )
-        );
-
-    camera.y =
-        Math.max(
-            H / 2,
-            Math.min(
-                world.height - H / 2,
-                camera.y
-            )
-        );
-
-    camera.shake =
-        Math.max(
-            0,
-            camera.shake - dt * 18
-        );
+function worldToScreen(x, y) {
+    return {
+        x: x - camera.x + W / 2,
+        y: y - camera.y + H / 2
+    };
 }
 
 /* =========================================================
-   PARTICLES
+   DRAWING HELPERS
 ========================================================= */
 
-function updateParticles(dt) {
+function roundedRect(x, y, width, height, radius, fill, stroke = null) {
+    ctx.beginPath();
+    ctx.roundRect(x, y, width, height, radius);
+    ctx.fillStyle = fill;
+    ctx.fill();
 
-    for (
-        let i = particles.length - 1;
-        i >= 0;
-        i--
-    ) {
-
-        const p = particles[i];
-
-        p.x += p.vx * dt;
-        p.y += p.vy * dt;
-
-        p.vx *= .97;
-        p.vy *= .97;
-
-        p.life -= dt;
-
-        if (p.life <= 0) {
-            particles.splice(i, 1);
-        }
+    if (stroke) {
+        ctx.strokeStyle = stroke;
+        ctx.stroke();
     }
+}
+
+function drawShadow(x, y, rx, ry, alpha = 0.25) {
+    ctx.save();
+    ctx.fillStyle = `rgba(0,0,0,${alpha})`;
+    ctx.beginPath();
+    ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+}
+
+function drawGlow(x, y, radius, color, alpha = 0.3) {
+    const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+    gradient.addColorStop(0, color.replace("ALPHA", String(alpha)));
+    gradient.addColorStop(1, color.replace("ALPHA", "0"));
+
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
 }
 
 /* =========================================================
-   MESSAGES
-========================================================= */
-
-function showMessage(text, duration = 2.5) {
-
-    messageText = text;
-    messageTimer = duration;
-}
-
-/* Compatibilidade */
-function message(text, duration = 2.5) {
-    showMessage(text, duration);
-}
-
-/* =========================================================
-   HUD
-========================================================= */
-
-function updateHUD() {
-
-    const hpBar =
-        document.getElementById("hpBar");
-
-    const staminaBar =
-        document.getElementById("staminaBar");
-
-    const dayText =
-        document.getElementById("dayText");
-
-    const resourcesText =
-        document.getElementById("resourceText");
-
-    const questText =
-        document.getElementById("questText");
-
-    if (hpBar) {
-
-        hpBar.style.width =
-            `${Math.max(
-                0,
-                player.hp /
-                player.maxHp *
-                100
-            )}%`;
-    }
-
-    if (staminaBar) {
-
-        staminaBar.style.width =
-            `${Math.max(
-                0,
-                player.stamina /
-                player.maxStamina *
-                100
-            )}%`;
-    }
-
-    if (dayText) {
-
-        const phase =
-            worldTime / 180;
-
-        dayText.textContent =
-            phase > .25 &&
-            phase < .75
-                ? `☀️ Dia ${day}`
-                : `🌙 Noite — Dia ${day}`;
-    }
-
-    if (resourcesText) {
-
-        resourcesText.textContent =
-            `🪵 ${resources.wood}   ` +
-            `🪨 ${resources.stone}   ` +
-            `🍄 ${resources.mushroom}   ` +
-            `✨ ${resources.strange}`;
-    }
-
-    if (questText) {
-
-        if (questStage === 0) {
-
-            questText.textContent =
-                "Explore a floresta e encontre um cogumelo estranho.";
-        }
-
-        else if (questStage === 1) {
-
-            questText.textContent =
-                "O cogumelo estranho está reagindo. Volte ao abrigo.";
-        }
-
-        else if (questStage === 2) {
-
-            questText.textContent =
-                "Fale com o Ancião próximo ao abrigo.";
-        }
-
-        else if (questStage === 3) {
-
-            questText.textContent =
-                "Converse com o Ancião e escolha seu caminho.";
-        }
-
-        else if (
-            questStage >= 4 &&
-            questStage < 6
-        ) {
-
-            const found =
-                V5.ancientStones.filter(
-                    stone => stone.discovered
-                ).length;
-
-            questText.textContent =
-                `Procure as pedras antigas (${found}/3).`;
-        }
-
-        else if (questStage === 6) {
-
-            questText.textContent =
-                "Retorne ao Ancião.";
-        }
-
-        else if (V5.questComplete) {
-
-            questText.textContent =
-                "A história da floresta apenas começou...";
-        }
-
-        else {
-
-            questText.textContent =
-                "Continue explorando a floresta.";
-        }
-    }
-}
-
-/* =========================================================
-   DRAW GROUND
+   GROUND AND ENVIRONMENT
 ========================================================= */
 
 function drawGround() {
+    ctx.fillStyle = "#18271a";
+    ctx.fillRect(0, 0, W, H);
 
-    ctx.fillStyle = "#172018";
+    const tileSize = 70;
+    const startX = Math.floor((camera.x - W / 2) / tileSize) * tileSize;
+    const startY = Math.floor((camera.y - H / 2) / tileSize) * tileSize;
 
-    ctx.fillRect(
-        0,
-        0,
-        world.width,
-        world.height
-    );
+    for (let wx = startX; wx < camera.x + W / 2 + tileSize; wx += tileSize) {
+        for (let wy = startY; wy < camera.y + H / 2 + tileSize; wy += tileSize) {
+            const point = worldToScreen(wx, wy);
 
-    for (
-        let x = 0;
-        x < world.width;
-        x += 80
-    ) {
-
-        for (
-            let y = 0;
-            y < world.height;
-            y += 80
-        ) {
-
-            ctx.fillStyle =
-                ((x / 80 + y / 80) % 2 === 0)
-                    ? "#19231a"
-                    : "#182019";
-
-            ctx.fillRect(
-                x,
-                y,
-                80,
-                80
+            const seed = Math.abs(
+                Math.sin(wx * 0.013 + wy * 0.021) *
+                Math.cos(wx * 0.008 - wy * 0.017)
             );
+
+            ctx.fillStyle = seed > 0.5 ? "#1b2c1d" : "#19291b";
+            ctx.fillRect(point.x, point.y, tileSize + 1, tileSize + 1);
+
+            if (seed > 0.72) {
+                ctx.strokeStyle = "rgba(95,120,76,0.14)";
+                ctx.lineWidth = 1;
+
+                ctx.beginPath();
+                ctx.moveTo(point.x + 8, point.y + 18);
+                ctx.lineTo(point.x + 15, point.y + 11);
+                ctx.moveTo(point.x + 36, point.y + 50);
+                ctx.lineTo(point.x + 45, point.y + 44);
+                ctx.stroke();
+            }
         }
     }
+
+    drawForestPaths();
+}
+
+function drawForestPaths() {
+    ctx.save();
+    ctx.lineCap = "round";
+
+    const pathPoints = [
+        [1800, 1500],
+        [1700, 1250],
+        [1450, 1100],
+        [1250, 900],
+        [950, 700],
+        [760, 450]
+    ];
+
+    ctx.beginPath();
+
+    pathPoints.forEach((point, index) => {
+        const screen = worldToScreen(point[0], point[1]);
+
+        if (index === 0) ctx.moveTo(screen.x, screen.y);
+        else ctx.lineTo(screen.x, screen.y);
+    });
+
+    ctx.strokeStyle = "#293324";
+    ctx.lineWidth = 72;
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(111,111,75,0.18)";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([8, 13]);
+    ctx.stroke();
+
+    ctx.restore();
+}
+
+function drawGrassDetails() {
+    const tile = 24;
+    const left = Math.floor((camera.x - W / 2) / tile) * tile;
+    const top = Math.floor((camera.y - H / 2) / tile) * tile;
+
+    ctx.save();
+
+    for (let x = left; x < camera.x + W / 2 + tile; x += tile) {
+        for (let y = top; y < camera.y + H / 2 + tile; y += tile) {
+            const seed = Math.abs(Math.sin(x * 0.03 + y * 0.05));
+
+            if (seed > 0.92) {
+                const p = worldToScreen(x, y);
+
+                ctx.strokeStyle = "rgba(102,135,81,0.24)";
+                ctx.lineWidth = 1;
+
+                ctx.beginPath();
+                ctx.moveTo(p.x, p.y + 3);
+                ctx.lineTo(p.x + 2, p.y - 3);
+                ctx.moveTo(p.x + 3, p.y + 4);
+                ctx.lineTo(p.x + 5, p.y - 1);
+                ctx.stroke();
+            }
+        }
+    }
+
+    ctx.restore();
 }
 
 /* =========================================================
    TREES
 ========================================================= */
 
-function drawTrees() {
+function drawTree(tree) {
+    const p = worldToScreen(tree.x, tree.y);
 
-    for (const tree of trees) {
+    if (
+        p.x < -80 || p.x > W + 80 ||
+        p.y < -100 || p.y > H + 100
+    ) return;
 
-        ctx.save();
+    const r = tree.radius;
 
-        ctx.translate(
-            tree.x,
-            tree.y
-        );
+    drawShadow(p.x, p.y + r * 0.45, r * 1.05, r * 0.55, 0.32);
 
-        ctx.fillStyle =
-            "#3b261a";
+    ctx.fillStyle = "#493c2c";
+    ctx.fillRect(p.x - r * 0.2, p.y - r * 0.05, r * 0.4, r * 1.1);
 
-        ctx.fillRect(
-            -tree.radius * .25,
-            0,
-            tree.radius * .5,
-            tree.radius * 1.6
-        );
+    const leaves = [
+        { x: -0.35, y: -0.55, scale: 0.75, color: "#29462c" },
+        { x: 0.25, y: -0.65, scale: 0.85, color: "#345334" },
+        { x: 0, y: -1.05, scale: 0.8, color: "#3b603b" },
+        { x: 0.48, y: -0.25, scale: 0.6, color: "#29472c" },
+        { x: -0.5, y: -0.2, scale: 0.65, color: "#243f28" }
+    ];
 
-        ctx.fillStyle =
-            "#19391f";
-
+    for (const leaf of leaves) {
+        ctx.fillStyle = leaf.color;
         ctx.beginPath();
-
-        ctx.arc(
-            0,
-            -tree.radius * .3,
-            tree.radius,
+        ctx.ellipse(
+            p.x + leaf.x * r,
+            p.y + leaf.y * r,
+            r * leaf.scale,
+            r * leaf.scale * 0.82,
+            leaf.x * 0.3,
             0,
             Math.PI * 2
         );
-
         ctx.fill();
-
-        ctx.fillStyle =
-            "#245229";
-
-        ctx.beginPath();
-
-        ctx.arc(
-            -tree.radius * .4,
-            -tree.radius * .65,
-            tree.radius * .55,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fill();
-
-        ctx.restore();
     }
+
+    ctx.strokeStyle = "rgba(117,151,86,0.22)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(p.x - r * 0.2, p.y - r * 0.8, r * 0.45, 3.5, 5.4);
+    ctx.stroke();
 }
 
 /* =========================================================
    ROCKS
 ========================================================= */
 
-function drawRocks() {
+function drawRock(rock) {
+    const p = worldToScreen(rock.x, rock.y);
 
-    for (const rock of rocks) {
+    if (
+        p.x < -50 || p.x > W + 50 ||
+        p.y < -50 || p.y > H + 50
+    ) return;
 
-        ctx.fillStyle =
-            "#4d524e";
+    const r = rock.radius;
 
-        ctx.beginPath();
+    drawShadow(p.x, p.y + r * 0.45, r * 1.1, r * 0.45, 0.35);
 
-        ctx.ellipse(
-            rock.x,
-            rock.y,
-            rock.radius,
-            rock.radius * .7,
-            0,
-            0,
-            Math.PI * 2
-        );
+    ctx.fillStyle = "#4d554d";
+    ctx.beginPath();
+    ctx.moveTo(p.x - r, p.y + r * 0.15);
+    ctx.lineTo(p.x - r * 0.6, p.y - r * 0.55);
+    ctx.lineTo(p.x + r * 0.05, p.y - r * 0.85);
+    ctx.lineTo(p.x + r * 0.75, p.y - r * 0.3);
+    ctx.lineTo(p.x + r, p.y + r * 0.35);
+    ctx.lineTo(p.x - r * 0.3, p.y + r * 0.65);
+    ctx.closePath();
+    ctx.fill();
 
-        ctx.fill();
-
-        ctx.fillStyle =
-            "#70756f";
-
-        ctx.beginPath();
-
-        ctx.arc(
-            rock.x - rock.radius * .25,
-            rock.y - rock.radius * .2,
-            rock.radius * .3,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fill();
-    }
+    ctx.strokeStyle = "rgba(186,195,176,0.2)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(p.x - r * 0.55, p.y - r * 0.4);
+    ctx.lineTo(p.x + r * 0.05, p.y - r * 0.7);
+    ctx.lineTo(p.x + r * 0.35, p.y - r * 0.3);
+    ctx.stroke();
 }
 
 /* =========================================================
-   MUSHROOMS
+   MUSHROOMS AND COLLECTIBLES
 ========================================================= */
 
-function drawMushrooms() {
+function drawMushroom(mushroom) {
+    if (mushroom.collected) return;
 
-    for (const mushroom of mushrooms) {
+    const p = worldToScreen(mushroom.x, mushroom.y);
+    if (p.x < -25 || p.x > W + 25 || p.y < -25 || p.y > H + 25) return;
 
-        if (mushroom.collected) continue;
+    drawShadow(p.x, p.y + 5, 8, 3, 0.28);
 
-        ctx.save();
+    ctx.fillStyle = "#d9c7a2";
+    ctx.fillRect(p.x - 2, p.y - 1, 4, 9);
 
-        ctx.translate(
-            mushroom.x,
-            mushroom.y
-        );
+    ctx.fillStyle = mushroom.strange ? "#b34bda" : "#b64d48";
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y - 3, 9, 6, 0, Math.PI, Math.PI * 2);
+    ctx.fill();
 
-        ctx.fillStyle =
-            "#ded6b7";
+    ctx.fillStyle = "#f1e6d3";
 
-        ctx.fillRect(
-            -3,
-            2,
-            6,
-            14
-        );
-
-        ctx.fillStyle =
-            mushroom.strange
-                ? "#7d2cff"
-                : "#a94444";
-
+    if (mushroom.strange) {
         ctx.beginPath();
-
-        ctx.arc(
-            0,
-            2,
-            10,
-            Math.PI,
-            0
-        );
-
+        ctx.arc(p.x - 3, p.y - 5, 1.5, 0, Math.PI * 2);
+        ctx.arc(p.x + 3, p.y - 7, 1.5, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.fillStyle =
-            "#f2e8c8";
-
-        for (let i = 0; i < 3; i++) {
-
-            ctx.beginPath();
-
-            ctx.arc(
-                random(-6, 6),
-                random(-3, 2),
-                1.5,
-                0,
-                Math.PI * 2
-            );
-
-            ctx.fill();
-        }
-
-        ctx.restore();
-    }
-}
-
-/* =========================================================
-   RESOURCES
-========================================================= */
-
-function drawResources() {
-
-    for (const wood of woods) {
-
-        if (wood.collected) continue;
-
-        ctx.save();
-
-        ctx.translate(
-            wood.x,
-            wood.y
-        );
-
-        ctx.rotate(.3);
-
-        ctx.fillStyle =
-            "#76502d";
-
-        ctx.fillRect(
-            -12,
-            -4,
-            24,
-            8
-        );
-
-        ctx.restore();
-    }
-
-    for (const stone of stones) {
-
-        if (stone.collected) continue;
-
-        ctx.fillStyle =
-            "#6d716d";
-
+        drawGlow(p.x, p.y - 3, 19, "rgba(174,100,220,ALPHA)", 0.16);
+    } else {
         ctx.beginPath();
-
-        ctx.arc(
-            stone.x,
-            stone.y,
-            8,
-            0,
-            Math.PI * 2
-        );
-
+        ctx.arc(p.x - 3, p.y - 5, 1.5, 0, Math.PI * 2);
+        ctx.arc(p.x + 3, p.y - 4, 1.2, 0, Math.PI * 2);
         ctx.fill();
     }
 }
 
+function drawWood(wood) {
+    if (wood.collected) return;
+
+    const p = worldToScreen(wood.x, wood.y);
+
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(-0.35);
+
+    drawShadow(0, 5, 11, 4, 0.3);
+
+    ctx.fillStyle = "#765236";
+    ctx.fillRect(-11, -3, 22, 7);
+
+    ctx.fillStyle = "#aa8054";
+    ctx.fillRect(-8, -3, 3, 7);
+    ctx.fillRect(2, -3, 2, 7);
+
+    ctx.restore();
+}
+
+function drawStone(stone) {
+    if (stone.collected) return;
+
+    const p = worldToScreen(stone.x, stone.y);
+
+    drawShadow(p.x, p.y + 5, 9, 4, 0.3);
+
+    ctx.fillStyle = "#778178";
+    ctx.beginPath();
+    ctx.moveTo(p.x - 8, p.y + 4);
+    ctx.lineTo(p.x - 5, p.y - 5);
+    ctx.lineTo(p.x + 2, p.y - 8);
+    ctx.lineTo(p.x + 8, p.y - 2);
+    ctx.lineTo(p.x + 7, p.y + 4);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = "rgba(225,230,215,0.22)";
+    ctx.beginPath();
+    ctx.moveTo(p.x - 4, p.y - 3);
+    ctx.lineTo(p.x + 2, p.y - 6);
+    ctx.stroke();
+}
+
 /* =========================================================
-   SHELTER
+   SHELTER AND CAMPFIRE
 ========================================================= */
 
 function drawShelter() {
+    const p = worldToScreen(shelter.x, shelter.y);
+    const x = p.x - shelter.width / 2;
+    const y = p.y - shelter.height / 2;
 
-    ctx.save();
+    drawShadow(p.x, y + shelter.height, shelter.width * 0.55, 25, 0.35);
 
-    ctx.translate(
-        shelter.x,
-        shelter.y
-    );
+    ctx.fillStyle = "#45392a";
+    ctx.fillRect(x, y + 38, shelter.width, shelter.height - 38);
 
-    ctx.fillStyle =
-        "#513521";
-
-    ctx.fillRect(
-        -shelter.width / 2,
-        -shelter.height / 2,
-        shelter.width,
-        shelter.height
-    );
-
-    ctx.fillStyle =
-        "#2d1b16";
-
+    ctx.fillStyle = "#6c5036";
     ctx.beginPath();
-
-    ctx.moveTo(
-        -shelter.width / 2 - 20,
-        -shelter.height / 2
-    );
-
-    ctx.lineTo(
-        0,
-        -shelter.height / 2 - 90
-    );
-
-    ctx.lineTo(
-        shelter.width / 2 + 20,
-        -shelter.height / 2
-    );
-
+    ctx.moveTo(x - 18, y + 42);
+    ctx.lineTo(p.x, y - 28);
+    ctx.lineTo(x + shelter.width + 18, y + 42);
     ctx.closePath();
-
     ctx.fill();
 
-    ctx.fillStyle =
-        "#1b1411";
+    ctx.strokeStyle = "#96724b";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(x - 18, y + 42);
+    ctx.lineTo(p.x, y - 28);
+    ctx.lineTo(x + shelter.width + 18, y + 42);
+    ctx.stroke();
 
-    ctx.fillRect(
-        -28,
-        15,
-        56,
-        75
-    );
+    ctx.fillStyle = "#1a2118";
+    ctx.fillRect(p.x - 24, y + 83, 48, 65);
 
-    ctx.restore();
+    ctx.fillStyle = "#6e5439";
+    ctx.fillRect(x + 20, y + 58, 34, 22);
+
+    ctx.fillStyle = "#d0bd8e";
+    ctx.fillRect(x + 31, y + 63, 4, 4);
+    ctx.fillRect(x + 40, y + 63, 4, 4);
+
+    drawCampfire();
 }
-
-/* =========================================================
-   CAMPFIRE
-========================================================= */
 
 function drawCampfire() {
+    const p = worldToScreen(campfire.x, campfire.y);
+    const flicker = Math.sin(gameTime * 13) * 3;
 
-    const flicker =
-        Math.sin(
-            performance.now() * .015
-        ) * 3;
+    drawGlow(p.x, p.y, 110 + flicker * 2, "rgba(255,125,40,ALPHA)", 0.22);
 
-    ctx.save();
+    drawShadow(p.x, p.y + 7, 25, 11, 0.45);
 
-    ctx.translate(
-        campfire.x,
-        campfire.y
-    );
-
-    ctx.shadowBlur = 35;
-    ctx.shadowColor =
-        "#ff9d42";
-
-    ctx.fillStyle =
-        "#f39a35";
+    ctx.strokeStyle = "#64432a";
+    ctx.lineWidth = 7;
+    ctx.lineCap = "round";
 
     ctx.beginPath();
+    ctx.moveTo(p.x - 14, p.y + 4);
+    ctx.lineTo(p.x + 14, p.y - 3);
+    ctx.moveTo(p.x - 13, p.y - 4);
+    ctx.lineTo(p.x + 13, p.y + 4);
+    ctx.stroke();
 
-    ctx.arc(
-        0,
-        0,
-        campfire.radius + flicker,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-
-    ctx.shadowBlur = 0;
-
-    ctx.fillStyle =
-        "#ffdf70";
-
+    ctx.fillStyle = "#ff8b3d";
     ctx.beginPath();
-
-    ctx.moveTo(
-        0,
-        -25
-    );
-
-    ctx.lineTo(
-        13,
-        5
-    );
-
-    ctx.lineTo(
-        0,
-        19
-    );
-
-    ctx.lineTo(
-        -13,
-        5
-    );
-
-    ctx.closePath();
-
+    ctx.moveTo(p.x, p.y - 25 - flicker);
+    ctx.quadraticCurveTo(p.x + 16, p.y - 8, p.x + 4, p.y + 1);
+    ctx.quadraticCurveTo(p.x - 15, p.y - 2, p.x, p.y - 25 - flicker);
     ctx.fill();
 
-    ctx.restore();
+    ctx.fillStyle = "#ffd777";
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y - 15 - flicker * 0.5);
+    ctx.quadraticCurveTo(p.x + 7, p.y - 4, p.x, p.y);
+    ctx.quadraticCurveTo(p.x - 7, p.y - 5, p.x, p.y - 15 - flicker * 0.5);
+    ctx.fill();
 }
+```
 
+```javascript
 /* =========================================================
-   ENEMIES
-========================================================= */
-
-function drawEnemies() {
-
-    for (const enemy of enemies) {
-
-        if (enemy.hp <= 0) continue;
-
-        ctx.save();
-
-        ctx.translate(
-            enemy.x,
-            enemy.y
-        );
-
-        if (enemy.hitTimer > 0) {
-            ctx.globalAlpha = .55;
-        }
-
-        ctx.fillStyle =
-            "#56753b";
-
-        ctx.beginPath();
-
-        ctx.arc(
-            0,
-            0,
-            enemy.radius,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fill();
-
-        ctx.fillStyle =
-            "#27341f";
-
-        ctx.beginPath();
-
-        ctx.arc(
-            -6,
-            -3,
-            3,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.arc(
-            6,
-            -3,
-            3,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fill();
-
-        ctx.fillStyle =
-            "#9a3737";
-
-        ctx.beginPath();
-
-        ctx.arc(
-            0,
-            5,
-            4,
-            0,
-            Math.PI
-        );
-
-        ctx.fill();
-
-        ctx.restore();
-
-        if (enemy.hp < enemy.maxHp) {
-
-            ctx.fillStyle =
-                "#321616";
-
-            ctx.fillRect(
-                enemy.x - 18,
-                enemy.y - 28,
-                36,
-                4
-            );
-
-            ctx.fillStyle =
-                "#c94a4a";
-
-            ctx.fillRect(
-                enemy.x - 18,
-                enemy.y - 28,
-                36 *
-                (enemy.hp /
-                enemy.maxHp),
-                4
-            );
-        }
-    }
-}
-
-/* =========================================================
-   PLAYER
+   PLAYER DRAWING AND ANIMATIONS
 ========================================================= */
 
 function drawPlayer() {
+    const p = worldToScreen(player.x, player.y);
+    const moving = Math.hypot(getMovementInput().x, getMovementInput().y) > 0.1;
+    const walk = moving ? Math.sin(gameTime * 13) * 2.5 : 0;
+    const hurt = player.hurtTimer > 0;
+    const rogue = playerClass.selected === "rogue";
+    const mage = playerClass.selected === "mage";
+    const warrior = playerClass.selected === "warrior";
+
+    drawShadow(p.x, p.y + 12, 15, 7, 0.4);
+
+    if (player.invulnerable > 0 && Math.floor(gameTime * 22) % 2 === 0) {
+        ctx.globalAlpha = 0.5;
+    }
+
+    if (rogue) {
+        ctx.fillStyle = "#344a35";
+    } else if (mage) {
+        ctx.fillStyle = "#51426f";
+    } else {
+        ctx.fillStyle = "#465246";
+    }
+
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y + walk, 11, 14, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#b99b79";
+    ctx.beginPath();
+    ctx.arc(p.x, p.y - 11 + walk, 8, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = hurt ? "#b74a43" : "#332a24";
+    ctx.beginPath();
+    ctx.arc(p.x, p.y - 14 + walk, 8.5, Math.PI, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#211e1b";
+    ctx.beginPath();
+    ctx.arc(p.x + player.dirX * 3, p.y - 11 + player.dirY * 2 + walk, 1.6, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = "#a58b6c";
+    ctx.lineWidth = 4;
+    ctx.lineCap = "round";
+
+    ctx.beginPath();
+    ctx.moveTo(p.x - 7, p.y - 1 + walk);
+    ctx.lineTo(p.x - 12, p.y + 6 + walk);
+
+    ctx.moveTo(p.x + 7, p.y - 1 + walk);
+    ctx.lineTo(p.x + 12, p.y + 6 + walk);
+    ctx.stroke();
+
+    ctx.strokeStyle = "#302820";
+    ctx.lineWidth = 4;
+
+    ctx.beginPath();
+    ctx.moveTo(p.x - 5, p.y + 9 + walk);
+    ctx.lineTo(p.x - 6, p.y + 16 + walk);
+
+    ctx.moveTo(p.x + 5, p.y + 9 + walk);
+    ctx.lineTo(p.x + 6, p.y + 16 + walk);
+    ctx.stroke();
+
+    if (warrior) {
+        ctx.strokeStyle = "#a7b0b5";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(p.x - 8, p.y + 1);
+        ctx.lineTo(p.x - 13, p.y + 6);
+        ctx.stroke();
+    }
+
+    if (mage) {
+        ctx.strokeStyle = "#a995e4";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y + walk, 16, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+
+    if (player.attackTimer > 0) {
+        drawSwordAttack(p);
+    } else {
+        drawHeldWeapon(p);
+    }
+
+    ctx.globalAlpha = 1;
+}
+
+function drawHeldWeapon(p) {
+    ctx.save();
+    ctx.translate(p.x, p.y + 1);
+    ctx.rotate(Math.atan2(player.dirY, player.dirX));
+
+    if (playerClass.selected === "mage") {
+        ctx.strokeStyle = "#aa93ed";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(8, 3);
+        ctx.lineTo(19, -4);
+        ctx.stroke();
+
+        drawGlow(19, -4, 10, "rgba(175,142,255,ALPHA)", 0.35);
+    } else {
+        ctx.strokeStyle = "#9ba5a5";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(8, 3);
+        ctx.lineTo(22, -1);
+        ctx.stroke();
+
+        ctx.strokeStyle = "#725239";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(5, 4);
+        ctx.lineTo(10, 2);
+        ctx.stroke();
+    }
+
+    ctx.restore();
+}
+
+function drawSwordAttack(p) {
+    const progress = 1 - player.attackTimer / 0.16;
+    const angle = Math.atan2(player.dirY, player.dirX);
+    const swing = -1.5 + progress * 3;
+
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(angle + swing);
+
+    ctx.strokeStyle = "rgba(220,230,205,0.25)";
+    ctx.lineWidth = 17;
+    ctx.beginPath();
+    ctx.arc(0, 0, 37, -0.9, 0.9);
+    ctx.stroke();
+
+    ctx.strokeStyle = "#aab7ba";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(8, 1);
+    ctx.lineTo(49, 1);
+    ctx.stroke();
+
+    ctx.strokeStyle = "#e5e8d9";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(12, -1);
+    ctx.lineTo(45, -1);
+    ctx.stroke();
+
+    ctx.strokeStyle = "#735439";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(5, 1);
+    ctx.lineTo(13, 1);
+    ctx.stroke();
+
+    ctx.restore();
+}
+
+/* =========================================================
+   GOBLINS AND CREATURES
+========================================================= */
+
+function drawEnemy(enemy) {
+    if (enemy.dead) return;
+
+    const p = worldToScreen(enemy.x, enemy.y);
+
+    if (
+        p.x < -70 || p.x > W + 70 ||
+        p.y < -70 || p.y > H + 70
+    ) return;
+
+    if (enemy.type === "boss") {
+        drawBoss(enemy, p);
+        return;
+    }
+
+    const isNightstalker = enemy.type === "nightstalker";
+    const bodyColor = isNightstalker ? "#30354c" : "#607b43";
+    const headColor = isNightstalker ? "#444969" : "#7c9854";
+
+    drawShadow(p.x, p.y + 9, enemy.radius * 1.2, enemy.radius * 0.5, 0.38);
+
+    ctx.fillStyle = enemy.hitTimer > 0 ? "#d9c8b0" : bodyColor;
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y + 2, enemy.radius * 0.8, enemy.radius, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = headColor;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y - enemy.radius * 0.55, enemy.radius * 0.7, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = isNightstalker ? "#e58a99" : "#e7d9a0";
+    ctx.beginPath();
+    ctx.arc(p.x - 4, p.y - enemy.radius * 0.6, 2, 0, Math.PI * 2);
+    ctx.arc(p.x + 4, p.y - enemy.radius * 0.6, 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = isNightstalker ? "#515772" : "#8c9d61";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(p.x - 6, p.y + 7);
+    ctx.lineTo(p.x - 10, p.y + 13);
+    ctx.moveTo(p.x + 6, p.y + 7);
+    ctx.lineTo(p.x + 10, p.y + 13);
+    ctx.stroke();
+
+    if (enemy.hp < enemy.maxHp) {
+        drawHealthBar(p.x - 17, p.y - enemy.radius - 13, 34, 4, enemy.hp / enemy.maxHp);
+    }
+}
+
+function drawBoss(enemy, p) {
+    const dragon = enemy.bossKind === "dragon";
+    const r = enemy.radius;
+
+    drawGlow(
+        p.x,
+        p.y,
+        r * 3,
+        dragon ? "rgba(205,75,44,ALPHA)" : "rgba(140,90,200,ALPHA)",
+        0.2
+    );
+
+    drawShadow(p.x, p.y + r * 0.6, r * 1.5, r * 0.6, 0.45);
+
+    ctx.fillStyle = enemy.hitTimer > 0
+        ? "#f0d8c8"
+        : dragon ? "#733b32" : "#493d64";
+
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y, r, r * 1.05, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (dragon) {
+        ctx.fillStyle = "#8d5142";
+
+        ctx.beginPath();
+        ctx.moveTo(p.x - r * 0.4, p.y - r * 0.3);
+        ctx.lineTo(p.x - r * 1.6, p.y - r * 1.1);
+        ctx.lineTo(p.x - r * 1.2, p.y + r * 0.3);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.moveTo(p.x + r * 0.4, p.y - r * 0.3);
+        ctx.lineTo(p.x + r * 1.6, p.y - r * 1.1);
+        ctx.lineTo(p.x + r * 1.2, p.y + r * 0.3);
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    ctx.fillStyle = dragon ? "#ffb06a" : "#c4b6ff";
+    ctx.beginPath();
+    ctx.arc(p.x - r * 0.25, p.y - r * 0.15, r * 0.09, 0, Math.PI * 2);
+    ctx.arc(p.x + r * 0.25, p.y - r * 0.15, r * 0.09, 0, Math.PI * 2);
+    ctx.fill();
+
+    drawHealthBar(p.x - 55, p.y - r - 25, 110, 7, enemy.hp / enemy.maxHp);
+
+    ctx.fillStyle = "#e7e3d9";
+    ctx.font = "bold 10px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(dragon ? "DRAGÃO ANCESTRAL" : "GUARDIÃO DAS RUÍNAS", p.x, p.y - r - 33);
+    ctx.textAlign = "left";
+}
+
+function drawHealthBar(x, y, width, height, ratio) {
+    roundedRect(x, y, width, height, height / 2, "rgba(0,0,0,0.65)");
+    roundedRect(
+        x,
+        y,
+        width * Math.max(0, Math.min(1, ratio)),
+        height,
+        height / 2,
+        "#bd554b"
+    );
+}
+
+/* =========================================================
+   NPC DRAWING
+========================================================= */
+
+function drawNPC(npc) {
+    const p = worldToScreen(npc.x, npc.y);
+
+    if (
+        p.x < -40 || p.x > W + 40 ||
+        p.y < -50 || p.y > H + 50
+    ) return;
+
+    drawShadow(p.x, p.y + 10, 12, 5, 0.3);
+
+    ctx.fillStyle = npc.color;
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y + 1, 10, 13, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#d0ad8a";
+    ctx.beginPath();
+    ctx.arc(p.x, p.y - 12, 7, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = npc.role === "elder" ? "#d2d4ce" : "#352b24";
+    ctx.beginPath();
+    ctx.arc(p.x, p.y - 15, 7.5, Math.PI, Math.PI * 2);
+    ctx.fill();
+
+    if (npc.role === "elder") {
+        ctx.strokeStyle = "#d8d8c7";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(p.x + 5, p.y - 1);
+        ctx.lineTo(p.x + 9, p.y + 17);
+        ctx.stroke();
+    }
+
+    ctx.font = "10px Arial";
+    ctx.textAlign = "center";
+    ctx.fillStyle = "rgba(240,240,225,0.9)";
+    ctx.fillText(npc.name, p.x, p.y - 25);
+    ctx.textAlign = "left";
+
+    if (distance(player, npc) < 70) {
+        ctx.fillStyle = "#d7dfbd";
+        ctx.font = "bold 9px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText("E · Conversar", p.x, p.y + 30);
+        ctx.textAlign = "left";
+    }
+}
+
+/* =========================================================
+   ANIMAL DRAWING
+========================================================= */
+
+function drawAnimal(animal) {
+    if (!animal.alive) return;
+
+    const p = worldToScreen(animal.x, animal.y);
+
+    if (p.x < -30 || p.x > W + 30 || p.y < -30 || p.y > H + 30) return;
+
+    drawShadow(p.x, p.y + 5, animal.radius * 1.2, 4, 0.25);
+
+    ctx.fillStyle = animal.type === "deer" ? "#927354" : "#a7a08b";
+    ctx.beginPath();
+    ctx.ellipse(
+        p.x,
+        p.y,
+        animal.radius * 1.3,
+        animal.radius * 0.7,
+        0,
+        0,
+        Math.PI * 2
+    );
+    ctx.fill();
+
+    ctx.fillStyle = "#bba98b";
+    ctx.beginPath();
+    ctx.arc(p.x + 7, p.y - 3, animal.radius * 0.45, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (animal.type === "deer") {
+        ctx.strokeStyle = "#a99c7f";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(p.x + 8, p.y - 7);
+        ctx.lineTo(p.x + 10, p.y - 13);
+        ctx.lineTo(p.x + 13, p.y - 15);
+        ctx.moveTo(p.x + 10, p.y - 13);
+        ctx.lineTo(p.x + 7, p.y - 16);
+        ctx.stroke();
+    }
+}
+
+/* =========================================================
+   CHESTS, CRYSTALS, SHRINES
+========================================================= */
+
+function drawChest(chest) {
+    if (chest.opened) return;
+
+    const p = worldToScreen(chest.x, chest.y);
+
+    drawShadow(p.x, p.y + 8, 14, 5, 0.3);
+
+    ctx.fillStyle = "#68472c";
+    ctx.fillRect(p.x - 12, p.y - 5, 24, 15);
+
+    ctx.fillStyle = "#967047";
+    ctx.fillRect(p.x - 12, p.y - 8, 24, 7);
+
+    ctx.fillStyle = "#d2b76d";
+    ctx.fillRect(p.x - 2, p.y - 2, 4, 7);
+
+    if (distance(player, chest) < 75) {
+        ctx.font = "9px Arial";
+        ctx.fillStyle = "#f0e6c6";
+        ctx.textAlign = "center";
+        ctx.fillText("E · Abrir", p.x, p.y - 15);
+        ctx.textAlign = "left";
+    }
+}
+
+function drawCrystal(crystal) {
+    if (crystal.collected) return;
+
+    const p = worldToScreen(crystal.x, crystal.y);
+    const pulse = Math.sin(gameTime * 3 + crystal.pulse) * 3;
+
+    drawGlow(p.x, p.y, 45 + pulse, "rgba(110,190,235,ALPHA)", 0.3);
+
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(Math.sin(gameTime * 0.7 + crystal.pulse) * 0.1);
+
+    ctx.fillStyle = "#7fd8ef";
+    ctx.beginPath();
+    ctx.moveTo(0, -16 - pulse);
+    ctx.lineTo(10, -3);
+    ctx.lineTo(6, 12);
+    ctx.lineTo(-5, 10);
+    ctx.lineTo(-10, -4);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = "#d6f5ff";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, -13 - pulse);
+    ctx.lineTo(-2, 4);
+    ctx.stroke();
+
+    ctx.restore();
+
+    if (distance(player, crystal) < 75) {
+        ctx.font = "9px Arial";
+        ctx.fillStyle = "#d5f0f7";
+        ctx.textAlign = "center";
+        ctx.fillText("E · Coletar cristal", p.x, p.y - 24);
+        ctx.textAlign = "left";
+    }
+}
+
+function drawShrine(shrine) {
+    const p = worldToScreen(shrine.x, shrine.y);
 
     ctx.save();
 
-    ctx.translate(
-        player.x,
-        player.y
-    );
-
-    const moving =
-        Math.abs(joystick.x) > .05 ||
-        keys["w"] ||
-        keys["a"] ||
-        keys["s"] ||
-        keys["d"] ||
-        keys["arrowup"] ||
-        keys["arrowdown"] ||
-        keys["arrowleft"] ||
-        keys["arrowright"];
-
-    const bob =
-        moving
-            ? Math.sin(
-                performance.now() * .018
-            ) * 2
-            : 0;
-
-    ctx.translate(
-        0,
-        bob
-    );
-
-    if (
-        player.invulnerable > 0
-    ) {
-
-        ctx.globalAlpha = .55;
-    }
-
-    ctx.fillStyle =
-        "#111820";
-
+    ctx.fillStyle = shrine.activated ? "#526b4c" : "#5d6256";
     ctx.beginPath();
-
-    ctx.arc(
-        0,
-        0,
-        15,
-        0,
-        Math.PI * 2
-    );
-
+    ctx.ellipse(p.x, p.y + 5, 27, 20, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle =
-        "#263746";
+    ctx.fillStyle = shrine.activated ? "#8ac27d" : "#777e6c";
+    ctx.fillRect(p.x - 12, p.y - 22, 24, 26);
 
-    ctx.fillRect(
-        -10,
-        2,
-        20,
-        18
-    );
-
-    ctx.fillStyle =
-        "#d1a57a";
-
+    ctx.fillStyle = shrine.activated ? "#b9eaa0" : "#b2b9a2";
     ctx.beginPath();
-
-    ctx.arc(
-        0,
-        -13,
-        9,
-        0,
-        Math.PI * 2
-    );
-
+    ctx.arc(p.x, p.y - 21, 8, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle =
-        "#111";
-
-    ctx.beginPath();
-
-    ctx.arc(
-        player.dirX * 4,
-        -15 + player.dirY * 2,
-        2,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-
-    if (player.attackTimer > 0) {
-
-        ctx.save();
-
-        const angle =
-            Math.atan2(
-                player.dirY,
-                player.dirX
-            );
-
-        ctx.rotate(angle);
-
-        ctx.translate(
-            24,
-            0
-        );
-
-        ctx.rotate(
-            -.8 +
-            (.16 -
-            player.attackTimer) *
-            8
-        );
-
-        ctx.fillStyle =
-            "#65462c";
-
-        ctx.fillRect(
-            -4,
-            -2,
-            14,
-            4
-        );
-
-        ctx.fillStyle =
-            "#d7dce2";
-
-        ctx.beginPath();
-
-        ctx.moveTo(
-            5,
-            -4
-        );
-
-        ctx.lineTo(
-            48,
-            -4
-        );
-
-        ctx.lineTo(
-            57,
-            0
-        );
-
-        ctx.lineTo(
-            48,
-            4
-        );
-
-        ctx.lineTo(
-            5,
-            4
-        );
-
-        ctx.closePath();
-
-        ctx.fill();
-
-        ctx.restore();
+    if (shrine.activated) {
+        drawGlow(p.x, p.y - 10, 35, "rgba(150,220,130,ALPHA)", 0.3);
     }
 
     ctx.restore();
 }
 
 /* =========================================================
-   PARTICLES
+   WORLD STRUCTURES
 ========================================================= */
 
-function drawParticles() {
+function drawStructure(structure) {
+    const p = worldToScreen(structure.x, structure.y);
 
-    for (const p of particles) {
+    if (
+        p.x < -structure.width - 40 ||
+        p.x > W + structure.width + 40 ||
+        p.y < -structure.height - 40 ||
+        p.y > H + structure.height + 40
+    ) return;
 
-        ctx.globalAlpha =
-            Math.max(
-                0,
-                Math.min(
-                    1,
-                    p.life /
-                    p.maxLife
-                )
-            );
+    const x = p.x - structure.width / 2;
+    const y = p.y - structure.height / 2;
 
-        if (p.type === "hit") {
-            ctx.fillStyle = "#d95c5c";
-        }
+    drawShadow(p.x, y + structure.height, structure.width * 0.6, 18, 0.4);
 
-        else if (p.type === "damage") {
-            ctx.fillStyle = "#e74c4c";
-        }
+    if (structure.type === "ruins") {
+        ctx.fillStyle = "#5a6053";
+        ctx.fillRect(x, y + 25, structure.width, structure.height - 25);
 
-        else if (p.type === "death") {
-            ctx.fillStyle = "#87a84f";
-        }
+        ctx.fillStyle = "#777c6b";
+        ctx.fillRect(x - 12, y + 18, 30, structure.height - 10);
+        ctx.fillRect(x + structure.width - 18, y + 8, 30, structure.height);
 
-        else if (p.type === "collect") {
-            ctx.fillStyle = "#e7cf70";
-        }
+        ctx.fillStyle = "#222c23";
+        ctx.fillRect(p.x - 20, y + 45, 40, structure.height - 45);
+    } else if (structure.type === "tower") {
+        ctx.fillStyle = "#5a5b63";
+        ctx.fillRect(x + 20, y + 30, structure.width - 40, structure.height - 30);
 
-        else if (p.type === "craft") {
-            ctx.fillStyle = "#9f7cff";
-        }
+        ctx.fillStyle = "#777b83";
+        ctx.beginPath();
+        ctx.moveTo(x + 5, y + 35);
+        ctx.lineTo(p.x, y - 15);
+        ctx.lineTo(x + structure.width - 5, y + 35);
+        ctx.closePath();
+        ctx.fill();
 
-        else {
-            ctx.fillStyle = "#c6d6c1";
-        }
+        ctx.fillStyle = "#20242a";
+        ctx.fillRect(p.x - 12, y + 62, 24, 38);
+    } else if (structure.type === "castle") {
+        ctx.fillStyle = "#4b5051";
+        ctx.fillRect(x, y + 35, structure.width, structure.height - 35);
+
+        ctx.fillStyle = "#666c6b";
+        ctx.fillRect(x + 15, y + 5, 45, 80);
+        ctx.fillRect(x + structure.width - 60, y + 5, 45, 80);
+
+        ctx.fillStyle = "#353c3b";
+        ctx.fillRect(p.x - 28, y + structure.height - 75, 56, 75);
+
+        ctx.fillStyle = "#6c7370";
+        ctx.beginPath();
+        ctx.moveTo(x + 8, y + 10);
+        ctx.lineTo(x + 37, y - 20);
+        ctx.lineTo(x + 67, y + 10);
+        ctx.closePath();
+        ctx.fill();
 
         ctx.beginPath();
+        ctx.moveTo(x + structure.width - 68, y + 10);
+        ctx.lineTo(x + structure.width - 37, y - 20);
+        ctx.lineTo(x + structure.width - 8, y + 10);
+        ctx.closePath();
+        ctx.fill();
+    } else if (structure.type === "village") {
+        ctx.fillStyle = "#51432f";
+        ctx.fillRect(x, y + 35, structure.width, structure.height - 35);
 
-        ctx.arc(
-            p.x,
-            p.y,
-            p.size,
-            0,
-            Math.PI * 2
+        ctx.fillStyle = "#79583a";
+        ctx.beginPath();
+        ctx.moveTo(x - 10, y + 40);
+        ctx.lineTo(x + structure.width / 2, y);
+        ctx.lineTo(x + structure.width + 10, y + 40);
+        ctx.closePath();
+        ctx.fill();
+    }
+}
+
+/* =========================================================
+   FIRELIES RENDER
+========================================================= */
+
+function drawFireflies() {
+    if (!isNightTime()) return;
+
+    for (const fly of fireflies) {
+        const p = worldToScreen(
+            fly.x + Math.sin(fly.phase) * 8,
+            fly.y + Math.cos(fly.phase * 0.8) * 6
         );
 
+        if (p.x < -10 || p.x > W + 10 || p.y < -10 || p.y > H + 10) continue;
+
+        const alpha = 0.25 + (Math.sin(fly.phase) + 1) * 0.3;
+
+        ctx.fillStyle = `rgba(201,224,133,${alpha})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, fly.radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (alpha > 0.65) {
+            drawGlow(p.x, p.y, 8, "rgba(192,222,120,ALPHA)", 0.12);
+        }
+    }
+}
+```
+
+```javascript
+/* =========================================================
+   PARTICLES AND FLOATING TEXT
+========================================================= */
+
+function updateParticles(dt) {
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const particle = particles[i];
+
+        particle.x += particle.vx * dt;
+        particle.y += particle.vy * dt;
+        particle.vx *= Math.pow(0.15, dt);
+        particle.vy += 45 * dt;
+        particle.life -= dt;
+
+        if (particle.life <= 0) {
+            particles.splice(i, 1);
+        }
+    }
+}
+
+function drawParticles() {
+    for (const particle of particles) {
+        const p = worldToScreen(particle.x, particle.y);
+        const alpha = Math.max(0, particle.life / (particle.maxLife || 0.8));
+
+        ctx.globalAlpha = alpha;
+
+        let color = "#c4d3a5";
+
+        if (particle.type === "hit") color = "#c8a99a";
+        if (particle.type === "death") color = "#849c6b";
+        if (particle.type === "dodge") color = "#c0d8bf";
+        if (particle.type === "craft") color = "#c7d8a4";
+        if (particle.type === "collection") color = "#d5dba8";
+
+        if (particle.color) color = particle.color;
+
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, particle.size || 3, 0, Math.PI * 2);
         ctx.fill();
     }
 
     ctx.globalAlpha = 1;
 }
 
-function createHitParticles(x, y) {
+function showFloatingText(x, y, text, color = "#e5e8d8") {
+    floatingTexts.push({
+        x,
+        y,
+        text,
+        color,
+        life: 1.1,
+        maxLife: 1.1
+    });
+}
 
-    for (let i = 0; i < 10; i++) {
+function updateFloatingTexts(dt) {
+    for (let i = floatingTexts.length - 1; i >= 0; i--) {
+        const item = floatingTexts[i];
 
-        particles.push({
-            x,
-            y,
+        item.y -= 25 * dt;
+        item.life -= dt;
 
-            vx: random(-100, 100),
-            vy: random(-100, 100),
-
-            life: random(.2, .5),
-            maxLife: .5,
-
-            size: random(2, 5),
-
-            type: "hit"
-        });
+        if (item.life <= 0) floatingTexts.splice(i, 1);
     }
 }
 
-function createDeathParticles(x, y) {
+function drawFloatingTexts() {
+    for (const item of floatingTexts) {
+        const p = worldToScreen(item.x, item.y);
 
-    for (let i = 0; i < 20; i++) {
+        ctx.globalAlpha = Math.max(0, item.life / item.maxLife);
+        ctx.font = "bold 12px Arial";
+        ctx.textAlign = "center";
+        ctx.fillStyle = item.color;
+        ctx.fillText(item.text, p.x, p.y);
+    }
 
-        particles.push({
-            x,
-            y,
+    ctx.globalAlpha = 1;
+    ctx.textAlign = "left";
+}
 
-            vx: random(-130, 130),
-            vy: random(-130, 130),
+/* =========================================================
+   LIGHTING AND ATMOSPHERE
+========================================================= */
 
-            life: random(.4, 1),
-            maxLife: 1,
+function drawAtmosphere() {
+    drawWeather();
 
-            size: random(2, 6),
+    const vignette = ctx.createRadialGradient(
+        W / 2, H / 2, Math.min(W, H) * 0.2,
+        W / 2, H / 2, Math.max(W, H) * 0.72
+    );
 
-            type: "death"
-        });
+    vignette.addColorStop(0, "rgba(0,0,0,0)");
+    vignette.addColorStop(1, "rgba(0,0,0,0.34)");
+
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, W, H);
+
+    drawNightOverlay();
+}
+
+/* =========================================================
+   MINIMAP
+========================================================= */
+
+function toggleMap() {
+    worldState.mapOpen = !worldState.mapOpen;
+    showElement("mapPanel", worldState.mapOpen, "flex");
+
+    if (worldState.mapOpen) {
+        drawMinimapPanel();
     }
 }
 
-function createDodgeParticles() {
+function drawMinimapPanel() {
+    const container = element("mapContainer");
+    if (!container) return;
 
-    for (let i = 0; i < 12; i++) {
+    container.innerHTML = "";
+    container.style.position = "relative";
+    container.style.overflow = "hidden";
+    container.style.background = "#18271a";
 
-        particles.push({
-            x: player.x,
-            y: player.y,
+    const playerMarker = document.createElement("div");
+    playerMarker.style.cssText = `
+        position:absolute;
+        width:10px;height:10px;border-radius:50%;
+        background:#f0e7bf;box-shadow:0 0 10px #f0e7bf;
+        transform:translate(-50%,-50%);
+        left:${player.x / world.width * 100}%;
+        top:${player.y / world.height * 100}%;
+    `;
+    container.appendChild(playerMarker);
 
-            vx: random(-60, 60),
-            vy: random(-60, 60),
+    const shelterMarker = document.createElement("div");
+    shelterMarker.title = "Abrigo";
+    shelterMarker.style.cssText = `
+        position:absolute;width:9px;height:9px;background:#d39b68;
+        left:${shelter.x / world.width * 100}%;
+        top:${shelter.y / world.height * 100}%;
+    `;
+    container.appendChild(shelterMarker);
 
-            life: random(.2, .5),
-            maxLife: .5,
+    for (const npc of npcs) {
+        const marker = document.createElement("div");
+        marker.title = npc.name;
+        marker.style.cssText = `
+            position:absolute;width:7px;height:7px;border-radius:50%;
+            background:${npc.color};
+            left:${npc.x / world.width * 100}%;
+            top:${npc.y / world.height * 100}%;
+        `;
+        container.appendChild(marker);
+    }
 
-            size: random(2, 4),
+    for (const crystal of crystals) {
+        if (crystal.collected) continue;
 
-            type: "dodge"
-        });
+        const marker = document.createElement("div");
+        marker.title = "Cristal ancestral";
+        marker.style.cssText = `
+            position:absolute;width:6px;height:6px;background:#7fd8ef;
+            transform:rotate(45deg);
+            left:${crystal.x / world.width * 100}%;
+            top:${crystal.y / world.height * 100}%;
+        `;
+        container.appendChild(marker);
     }
 }
 
 /* =========================================================
-   NIGHT
+   HUD UPDATE
 ========================================================= */
 
-function drawNight() {
+function updateHUD() {
+    setWidth("hpBar", player.hp / player.maxHp * 100);
+    setWidth("staminaBar", player.stamina / player.maxStamina * 100);
 
-    const phase =
-        worldTime / 180;
+    setText("hpText", `${Math.ceil(player.hp)}/${player.maxHp}`);
+    setText("staminaText", `${Math.ceil(player.stamina)}/${player.maxStamina}`);
 
-    let darkness = 0;
+    setText("dayText", `Dia ${day} · ${isNightTime() ? "Noite" : "Dia"}`);
 
-    if (phase < .2) {
-        darkness = 0;
-    }
-
-    else if (phase < .35) {
-        darkness =
-            (phase - .2) /
-            .15 *
-            .5;
-    }
-
-    else if (phase < .7) {
-        darkness = .5;
-    }
-
-    else if (phase < .85) {
-        darkness =
-            .5 -
-            ((phase - .7) /
-            .15 *
-            .5);
-    }
-
-    else {
-        darkness = 0;
-    }
-
-    if (darkness <= 0) return;
-
-    ctx.fillStyle =
-        `rgba(5,8,20,${darkness})`;
-
-    ctx.fillRect(
-        0,
-        0,
-        W,
-        H
+    setText(
+        "resourceText",
+        `Madeira: ${resources.wood} · Pedra: ${resources.stone}`
     );
 
-    const px =
-        player.x -
-        camera.x +
-        W / 2;
+    setText("v5Level", `Nível ${progression.level}`);
+    setText("v5Gold", `◈ ${progression.gold}`);
+    setText("v5Xp", `${progression.xp}/${progression.xpToNext} XP`);
 
-    const py =
-        player.y -
-        camera.y +
-        H / 2;
+    setWidth("v5XpBar", progression.xp / progression.xpToNext * 100);
 
-    const gradient =
-        ctx.createRadialGradient(
-            px,
-            py,
-            30,
-            px,
-            py,
-            250
-        );
+    setText("v5Hunger", `Fome: ${Math.ceil(survival.hunger)}%`);
+    setText("v5Thirst", `Sede: ${Math.ceil(survival.thirst)}%`);
+    setText("weatherText", `Clima: ${weather.current}`);
 
-    gradient.addColorStop(
-        0,
-        "rgba(255,255,255,.10)"
-    );
+    const selectedClass = playerClass.selected
+        ? CLASS_INFO[playerClass.selected].name
+        : "Sem classe";
 
-    gradient.addColorStop(
-        1,
-        "rgba(0,0,0,0)"
-    );
+    setText("v5Class", selectedClass);
 
-    ctx.fillStyle =
-        gradient;
-
-    ctx.fillRect(
-        0,
-        0,
-        W,
-        H
-    );
-}
-
-/* =========================================================
-   VIGNETTE
-========================================================= */
-
-function drawVignette() {
-
-    const gradient =
-        ctx.createRadialGradient(
-            W / 2,
-            H / 2,
-            Math.min(W, H) * .25,
-            W / 2,
-            H / 2,
-            Math.max(W, H) * .7
-        );
-
-    gradient.addColorStop(
-        0,
-        "rgba(0,0,0,0)"
-    );
-
-    gradient.addColorStop(
-        1,
-        "rgba(0,0,0,.45)"
-    );
-
-    ctx.fillStyle =
-        gradient;
-
-    ctx.fillRect(
-        0,
-        0,
-        W,
-        H
-    );
-}
-
-/* =========================================================
-   V5 — EXTENDED SYSTEMS
-========================================================= */
-
-const V5 = {
-
-    initialized: false,
-
-    elder: {
-        x: 1940,
-        y: 1210,
-        radius: 18,
-        active: true
-    },
-
-    dialogue: null,
-
-    gold: 0,
-
-    level: 1,
-    xp: 0,
-    xpNext: 100,
-
-    hunger: 100,
-    thirst: 100,
-
-    weather: "clear",
-    weatherTimer: 60,
-    weatherIntensity: 0,
-
-    playerClass: null,
-    classChosen: false,
-
-    questComplete: false,
-
-    flash: 0,
-
-    paused: false,
-
-    ancientStones: [],
-
-    crystalObjects: [],
-
-    chests: [],
-
-    animals: [],
-
-    fireflies: [],
-
-    shrine: {
-        x: 2550,
-        y: 950,
-        active: true
-    },
-
-    injuredGoblin: {
-        x: 2600,
-        y: 1100,
-        hp: 30,
-        active: true,
-        helped: false
-    },
-
-    specialMushroom: {
-        x: 2350,
-        y: 950,
-        active: true
-    }
-};
-
-/* =========================================================
-   V5 — WORLD CONTENT
-========================================================= */
-
-function generateV5World() {
-
-    V5.ancientStones = [
-        {
-            x: 2350,
-            y: 800,
-            discovered: false
-        },
-
-        {
-            x: 2700,
-            y: 850,
-            discovered: false
-        },
-
-        {
-            x: 2900,
-            y: 1150,
-            discovered: false
-        }
-    ];
-
-    V5.crystalObjects = [
-        {
-            x: 2200,
-            y: 900,
-            collected: false,
-            type: "purple"
-        },
-
-        {
-            x: 2800,
-            y: 1000,
-            collected: false,
-            type: "blue"
-        },
-
-        {
-            x: 2450,
-            y: 1250,
-            collected: false,
-            type: "green"
-        }
-    ];
-
-    V5.chests = [
-        {
-            x: 2250,
-            y: 1100,
-            opened: false,
-            gold: 8
-        },
-
-        {
-            x: 2900,
-            y: 1350,
-            opened: false,
-            gold: 15
-        }
-    ];
-
-    V5.animals = [];
-
-    for (let i = 0; i < 8; i++) {
-
-        V5.animals.push({
-            x: random(500, world.width - 500),
-            y: random(500, world.height - 500),
-            dirX: random(-1, 1),
-            dirY: random(-1, 1),
-            timer: random(1, 4),
-            type: i % 2 === 0
-                ? "deer"
-                : "rabbit"
-        });
-    }
-
-    V5.fireflies = [];
-
-    for (let i = 0; i < 35; i++) {
-
-        V5.fireflies.push({
-            x: random(400, world.width - 400),
-            y: random(400, world.height - 400),
-            phase: random(0, Math.PI * 2)
-        });
-    }
-}
-
-generateV5World();
-
-/* =========================================================
-   V5 — EXPERIENCE
-========================================================= */
-
-function gainXP(amount) {
-
-    if (amount <= 0) return;
-
-    V5.xp += amount;
-
-    while (V5.xp >= V5.xpNext) {
-
-        V5.xp -= V5.xpNext;
-
-        V5.level++;
-
-        V5.xpNext =
-            Math.floor(
-                V5.xpNext * 1.35
-            );
-
-        player.maxHp += 8;
-        player.hp = player.maxHp;
-
-        player.maxStamina += 5;
-        player.stamina = player.maxStamina;
-
-        V5.flash = 1;
-
-        showMessage(
-            `Você alcançou o nível ${V5.level}!`
-        );
-    }
-
-    updateHUD();
-}
-
-/* =========================================================
-   V5 — HUNGER / THIRST
-========================================================= */
-
-function updateSurvival(dt) {
-
-    if (V5.dialogue) return;
-
-    V5.hunger -= dt * .7;
-    V5.thirst -= dt * 1.0;
-
-    V5.hunger =
-        Math.max(
-            0,
-            V5.hunger
-        );
-
-    V5.thirst =
-        Math.max(
-            0,
-            V5.thirst
-        );
-
-    if (
-        V5.hunger <= 0 ||
-        V5.thirst <= 0
-    ) {
-
-        player.hp -= dt * .8;
-
-        if (player.hp <= 0) {
-
-            player.hp =
-                player.maxHp;
-
-            V5.hunger = 70;
-            V5.thirst = 70;
-
-            player.x =
-                shelter.x;
-
-            player.y =
-                shelter.y + 50;
-
-            showMessage(
-                "Você desmaiou de exaustão."
-            );
-        }
-    }
-}
-
-/* =========================================================
-   V5 — FOOD
-========================================================= */
-
-function consumeMushroom() {
-
-    if (resources.mushroom <= 0) {
-
-        showMessage(
-            "Você não possui cogumelos."
-        );
-
-        return;
-    }
-
-    resources.mushroom--;
-
-    V5.hunger =
-        Math.min(
-            100,
-            V5.hunger + 18
-        );
-
-    player.hp =
-        Math.min(
-            player.maxHp,
-            player.hp + 5
-        );
-
-    showMessage(
-        "Você comeu um cogumelo."
-    );
-
-    updateHUD();
     updateInventoryUI();
 }
 
 /* =========================================================
-   V5 — ELDER
+   PAUSE MENU
 ========================================================= */
 
-function drawElderV5() {
+function togglePause(force) {
+    if (worldState.gameOver) return;
 
-    if (!V5.elder.active) return;
+    worldState.paused = typeof force === "boolean"
+        ? force
+        : !worldState.paused;
 
-    const d =
-        Math.hypot(
-            player.x - V5.elder.x,
-            player.y - V5.elder.y
-        );
-
-    ctx.save();
-
-    ctx.translate(
-        V5.elder.x,
-        V5.elder.y
-    );
-
-    const pulse =
-        1 +
-        Math.sin(
-            performance.now() * .004
-        ) * .04;
-
-    ctx.scale(
-        pulse,
-        pulse
-    );
-
-    ctx.shadowBlur = 15;
-    ctx.shadowColor =
-        "#9c73d6";
-
-    ctx.fillStyle =
-        "#59466b";
-
-    ctx.beginPath();
-
-    ctx.arc(
-        0,
-        4,
-        17,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-
-    ctx.shadowBlur = 0;
-
-    ctx.fillStyle =
-        "#d0a87f";
-
-    ctx.beginPath();
-
-    ctx.arc(
-        0,
-        -14,
-        11,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-
-    ctx.fillStyle =
-        "#e4ddd0";
-
-    ctx.beginPath();
-
-    ctx.arc(
-        0,
-        -18,
-        13,
-        Math.PI,
-        0
-    );
-
-    ctx.fill();
-
-    ctx.fillStyle =
-        "#292032";
-
-    ctx.fillRect(
-        -6,
-        -15,
-        4,
-        3
-    );
-
-    ctx.fillRect(
-        2,
-        -15,
-        4,
-        3
-    );
-
-    ctx.fillStyle =
-        "#704b2d";
-
-    ctx.fillRect(
-        16,
-        -2,
-        4,
-        38
-    );
-
-    ctx.fillStyle =
-        "#a88046";
-
-    ctx.beginPath();
-
-    ctx.arc(
-        18,
-        -5,
-        6,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-
-    ctx.restore();
-
-    if (
-        d < 100 &&
-        !V5.dialogue
-    ) {
-
-        ctx.save();
-
-        ctx.textAlign =
-            "center";
-
-        ctx.font =
-            "bold 14px sans-serif";
-
-        ctx.fillStyle =
-            "#e9ddff";
-
-        ctx.shadowBlur = 8;
-        ctx.shadowColor =
-            "#000";
-
-        ctx.fillText(
-            "E — Falar",
-            V5.elder.x,
-            V5.elder.y - 42
-        );
-
-        ctx.restore();
-    }
+    showElement("pausePanel", worldState.paused, "flex");
 }
 
+bindClick("resumeButton", () => togglePause(false));
+bindClick("saveButton", () => saveGame(false));
+bindClick("loadButton", () => loadGame());
+
 /* =========================================================
-   V5 — DIALOGUE
+   SAVE AND LOAD
 ========================================================= */
 
-function startDialogue(
-    speaker,
-    text,
-    choices = [],
-    callback = null
-) {
-
-    V5.dialogue = {
-
-        speaker,
-
-        text,
-
-        chars: 0,
-
-        timer: 0,
-
-        finished: false,
-
-        choices,
-
-        selected: 0,
-
-        callback
+function buildSaveData() {
+    return {
+        version: 10,
+        savedAt: new Date().toISOString(),
+        player: {
+            x: player.x,
+            y: player.y,
+            hp: player.hp,
+            maxHp: player.maxHp,
+            stamina: player.stamina,
+            maxStamina: player.maxStamina,
+            speed: player.speed
+        },
+        resources: { ...resources },
+        craftedItems: { ...craftedItems },
+        progression: { ...progression },
+        survival: { ...survival },
+        equipment: { ...equipment },
+        playerClass: {
+            ...playerClass,
+            skills: { ...playerClass.skills },
+            unlocked: { ...playerClass.unlocked }
+        },
+        weather: { ...weather },
+        gameTime,
+        worldTime,
+        day,
+        questStage,
+        quests: {
+            active: quests.active,
+            completed: [...quests.completed],
+            progress: { ...quests.progress }
+        },
+        world: {
+            mushrooms: mushrooms.map(item => item.collected),
+            woods: woods.map(item => item.collected),
+            stones: stones.map(item => item.collected),
+            enemies: enemies.map(enemy => ({
+                x: enemy.x,
+                y: enemy.y,
+                hp: enemy.hp,
+                dead: enemy.dead,
+                type: enemy.type
+            })),
+            chests: chests.map(chest => chest.opened),
+            crystals: crystals.map(crystal => crystal.collected),
+            shrines: shrines.map(shrine => shrine.activated)
+        }
     };
 }
 
-function dialogueAdvance() {
+function saveGame(automatic = false) {
+    try {
+        const data = buildSaveData();
+        localStorage.setItem(worldState.saveSlot, JSON.stringify(data));
 
-    const d = V5.dialogue;
-
-    if (!d) return;
-
-    if (!d.finished) {
-
-        d.chars =
-            d.text.length;
-
-        d.finished = true;
-
-        return;
+        if (!automatic) {
+            showMessage("Jogo salvo com sucesso.");
+        }
+    } catch (error) {
+        if (!automatic) {
+            showMessage("Não foi possível salvar neste navegador.");
+        }
     }
-
-    if (d.choices.length > 0) {
-
-        chooseDialogue(
-            d.selected
-        );
-
-        return;
-    }
-
-    if (typeof d.callback === "function") {
-        d.callback();
-    }
-
-    V5.dialogue = null;
 }
 
-function chooseDialogue(index) {
+function loadGame() {
+    let raw;
 
-    const d =
-        V5.dialogue;
-
-    if (!d) return;
-
-    const choice =
-        d.choices[index];
-
-    if (!choice) return;
-
-    if (typeof choice.action === "function") {
-        choice.action();
-    }
-
-    V5.dialogue = null;
-}
-
-/* =========================================================
-   V5 — ELDER INTERACTION
-========================================================= */
-
-function interactElder() {
-
-    if (V5.questComplete) {
-
-        startDialogue(
-            "Eldran",
-            "Você voltou. A floresta ainda está observando você..."
-        );
-
+    try {
+        raw = localStorage.getItem(worldState.saveSlot);
+    } catch (_) {
+        showMessage("O armazenamento não está disponível.");
         return;
     }
 
-    if (questStage === 0) {
-
-        startDialogue(
-            "Eldran",
-            "A floresta não costuma aceitar visitantes. Mas você... parece ter sido escolhido."
-        );
-
-        questStage = 1;
-
+    if (!raw) {
+        showMessage("Nenhum salvamento encontrado.");
         return;
     }
 
-    if (questStage === 1) {
+    try {
+        const data = JSON.parse(raw);
 
-        if (resources.strange <= 0) {
-
-            startDialogue(
-                "Eldran",
-                "Procure o cogumelo estranho. Ele estará em algum lugar além das árvores."
-            );
-
-            return;
+        if (!data || !data.player || !data.resources) {
+            throw new Error("Save inválido");
         }
 
-        questStage = 2;
+        Object.assign(player, data.player);
+        Object.assign(resources, data.resources);
+        Object.assign(craftedItems, data.craftedItems || {});
+        Object.assign(progression, data.progression || {});
+        Object.assign(survival, data.survival || {});
+        Object.assign(equipment, data.equipment || {});
 
-        startDialogue(
-            "Eldran",
-            "Então você encontrou. Eu sabia que era apenas questão de tempo."
-        );
+        if (data.playerClass) {
+            Object.assign(playerClass, data.playerClass);
+            Object.assign(
+                playerClass.skills,
+                data.playerClass.skills || {}
+            );
+            Object.assign(
+                playerClass.unlocked,
+                data.playerClass.unlocked || {}
+            );
+        }
 
-        return;
-    }
+        if (data.weather) Object.assign(weather, data.weather);
 
-    if (questStage === 2) {
+        gameTime = Number(data.gameTime) || 0;
+        worldTime = Number(data.worldTime) || 0;
+        day = Number(data.day) || 1;
+        questStage = Number(data.questStage) || 0;
 
-        startDialogue(
-            "Eldran",
-            "Aquele cogumelo não é apenas uma planta. Ele é uma porta."
-        );
+        if (data.quests) {
+            quests.active = data.quests.active || "first_mushroom";
+            quests.completed = Array.isArray(data.quests.completed)
+                ? data.quests.completed
+                : [];
+            quests.progress = data.quests.progress || {};
+        }
 
-        questStage = 3;
+        const worldData = data.world || {};
 
-        return;
-    }
+        applyCollectedState(mushrooms, worldData.mushrooms);
+        applyCollectedState(woods, worldData.woods);
+        applyCollectedState(stones, worldData.stones);
+        applyCollectedState(chests, worldData.chests, "opened");
+        applyCollectedState(crystals, worldData.crystals);
+        applyCollectedState(shrines, worldData.shrines, "activated");
 
-    if (questStage === 3) {
+        if (Array.isArray(worldData.enemies)) {
+            for (let i = 0; i < Math.min(enemies.length, worldData.enemies.length); i++) {
+                Object.assign(enemies[i], worldData.enemies[i]);
+            }
+        }
 
-        startDialogue(
-            "Eldran",
-            "Há três pedras antigas espalhadas pela floresta. Descubra o que elas estão escondendo.",
-            [
-                {
-                    text: "Vou investigar.",
-                    action: () => {
-
-                        questStage = 4;
-
-                        showMessage(
-                            "Nova missão: investigar as pedras antigas."
-                        );
-                    }
-                },
-
-                {
-                    text: "Não quero me envolver.",
-                    action: () => {
-
-                        questStage = 5;
-
-                        showMessage(
-                            "Você decidiu ignorar o aviso."
-                        );
-                    }
-                }
-            ]
-        );
-
-        return;
-    }
-
-    if (questStage === 4) {
-
-        const count =
-            V5.ancientStones.filter(
-                s => s.discovered
-            ).length;
-
-        startDialogue(
-            "Eldran",
-            `Você descobriu ${count} de 3 pedras. Continue procurando.`
-        );
-
-        return;
-    }
-
-    if (questStage === 5) {
-
-        startDialogue(
-            "Eldran",
-            "Algumas escolhas não podem ser desfeitas..."
-        );
-
-        return;
-    }
-
-    if (questStage === 6) {
-
-        V5.questComplete = true;
-
-        V5.gold += 20;
-
-        resources.mushroom += 5;
-
-        gainXP(100);
-
-        questStage = 7;
-
-        V5.flash = 1;
-
-        startDialogue(
-            "Eldran",
-            "Você voltou vivo. Mas agora sabe que existe algo escondido sob a floresta."
-        );
-
-        showMessage(
-            "MISSÃO CONCLUÍDA — O Cogumelo que Sussurra"
-        );
+        worldState.paused = false;
+        worldState.gameOver = false;
 
         updateHUD();
+        updateQuestUI();
+        showMessage("Salvamento carregado.");
+    } catch (_) {
+        showMessage("O arquivo de salvamento está corrompido.");
+    }
+}
 
-        return;
+function applyCollectedState(items, states, property = "collected") {
+    if (!Array.isArray(states)) return;
+
+    for (let i = 0; i < Math.min(items.length, states.length); i++) {
+        items[i][property] = Boolean(states[i]);
     }
 }
 
 /* =========================================================
-   V5 — ANCIENT STONES
+   GAME OVER AND RESPAWN
 ========================================================= */
 
-function updateAncientStones() {
-
-    if (
-        questStage < 4 ||
-        questStage > 6
-    ) return;
-
-    for (
-        const stone
-        of V5.ancientStones
-    ) {
-
-        if (stone.discovered) continue;
-
-        const d =
-            Math.hypot(
-                player.x - stone.x,
-                player.y - stone.y
-            );
-
-        if (d < 55) {
-
-            stone.discovered = true;
-
-            gainXP(30);
-
-            V5.flash = .5;
-
-            createMagicParticles(
-                stone.x,
-                stone.y
-            );
-
-            const found =
-                V5.ancientStones.filter(
-                    s => s.discovered
-                ).length;
-
-            showMessage(
-                `Pedra antiga descoberta (${found}/3).`
-            );
-        }
-    }
-}
-
-function drawAncientStones() {
-
-    for (
-        const stone
-        of V5.ancientStones
-    ) {
-
-        if (stone.discovered) {
-
-            ctx.globalAlpha = .35;
-        }
-
-        ctx.save();
-
-        ctx.translate(
-            stone.x,
-            stone.y
-        );
-
-        ctx.shadowBlur = 15;
-
-        ctx.shadowColor =
-            "#9b69d5";
-
-        ctx.fillStyle =
-            "#65537d";
-
-        ctx.beginPath();
-
-        ctx.moveTo(
-            0,
-            -22
-        );
-
-        ctx.lineTo(
-            15,
-            -10
-        );
-
-        ctx.lineTo(
-            12,
-            22
-        );
-
-        ctx.lineTo(
-            -13,
-            22
-        );
-
-        ctx.lineTo(
-            -16,
-            -8
-        );
-
-        ctx.closePath();
-
-        ctx.fill();
-
-        ctx.strokeStyle =
-            "#bd94e9";
-
-        ctx.stroke();
-
-        ctx.restore();
-
-        ctx.globalAlpha = 1;
-    }
-}
-
-/* =========================================================
-   V5 — MAGIC CRYSTALS
-========================================================= */
-
-function drawCrystalObjects() {
-
-    for (
-        const crystal
-        of V5.crystalObjects
-    ) {
-
-        if (crystal.collected) continue;
-
-        ctx.save();
-
-        ctx.translate(
-            crystal.x,
-            crystal.y
-        );
-
-        const pulse =
-            1 +
-            Math.sin(
-                performance.now() * .004 +
-                crystal.x
-            ) * .08;
-
-        ctx.scale(
-            pulse,
-            pulse
-        );
-
-        ctx.shadowBlur = 20;
-
-        if (crystal.type === "purple") {
-            ctx.shadowColor =
-                "#a06cff";
-            ctx.fillStyle =
-                "#8f55d9";
-        }
-
-        else if (crystal.type === "blue") {
-            ctx.shadowColor =
-                "#5a9cff";
-            ctx.fillStyle =
-                "#4f76c5";
-        }
-
-        else {
-            ctx.shadowColor =
-                "#67d687";
-            ctx.fillStyle =
-                "#4f9e62";
-        }
-
-        ctx.beginPath();
-
-        ctx.moveTo(
-            0,
-            -16
-        );
-
-        ctx.lineTo(
-            10,
-            0
-        );
-
-        ctx.lineTo(
-            0,
-            17
-        );
-
-        ctx.lineTo(
-            -10,
-            0
-        );
-
-        ctx.closePath();
-
-        ctx.fill();
-
-        ctx.restore();
-    }
-}
-
-/* =========================================================
-   V5 — CHESTS
-========================================================= */
-
-function updateChests() {
-
-    for (
-        const chest
-        of V5.chests
-    ) {
-
-        if (chest.opened) continue;
-
-        const d =
-            Math.hypot(
-                player.x - chest.x,
-                player.y - chest.y
-            );
-
-        if (
-            d < 45 &&
-            keys["e"]
-        ) {
-
-            chest.opened = true;
-
-            V5.gold += chest.gold;
-
-            gainXP(15);
-
-            showMessage(
-                `Baú aberto! +${chest.gold} ouro.`
-            );
-        }
-    }
-}
-
-function drawChest() {
-
-    for (
-        const chest
-        of V5.chests
-    ) {
-
-        ctx.save();
-
-        ctx.translate(
-            chest.x,
-            chest.y
-        );
-
-        ctx.fillStyle =
-            chest.opened
-                ? "#3b2b1b"
-                : "#754c29";
-
-        ctx.fillRect(
-            -18,
-            -12,
-            36,
-            24
-        );
-
-        ctx.fillStyle =
-            "#b48a3d";
-
-        ctx.fillRect(
-            -3,
-            -2,
-            6,
-            6
-        );
-
-        ctx.restore();
-    }
-}
-
-/* =========================================================
-   V5 — INJURED GOBLIN
-========================================================= */
-
-function drawInjuredGoblin() {
-
-    if (!V5.injuredGoblin.active) return;
-
-    const g =
-        V5.injuredGoblin;
-
-    ctx.save();
-
-    ctx.translate(
-        g.x,
-        g.y
-    );
-
-    ctx.fillStyle =
-        g.helped
-            ? "#719b51"
-            : "#4d6d3a";
-
-    ctx.beginPath();
-
-    ctx.arc(
-        0,
-        0,
-        16,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-
-    ctx.fillStyle =
-        "#e5d9b9";
-
-    ctx.fillRect(
-        -10,
-        6,
-        20,
-        5
-    );
-
-    ctx.fillStyle =
-        "#242c1c";
-
-    ctx.fillRect(
-        -7,
-        -4,
-        4,
-        3
-    );
-
-    ctx.fillRect(
-        3,
-        -4,
-        4,
-        3
-    );
-
-    ctx.restore();
-
-    const d =
-        Math.hypot(
-            player.x - g.x,
-            player.y - g.y
-        );
-
-    if (
-        d < 75 &&
-        !V5.dialogue
-    ) {
-
-        ctx.save();
-
-        ctx.textAlign =
-            "center";
-
-        ctx.font =
-            "bold 13px sans-serif";
-
-        ctx.fillStyle =
-            "#d9d0c2";
-
-        ctx.fillText(
-            "E — Interagir",
-            g.x,
-            g.y - 30
-        );
-
-        ctx.restore();
-    }
-}
-
-function interactInjuredGoblin() {
-
-    if (!V5.injuredGoblin.active) return;
-
-    if (V5.injuredGoblin.helped) {
-
-        startDialogue(
-            "Goblin ferido",
-            "Você salvou minha vida. A floresta não esquecerá."
-        );
-
-        return;
+function showGameOver() {
+    worldState.paused = true;
+
+    let panel = element("gameOverPanel");
+
+    if (!panel) {
+        panel = document.createElement("div");
+        panel.id = "gameOverPanel";
+
+        panel.style.cssText = `
+            position:fixed;inset:0;z-index:500;
+            display:flex;flex-direction:column;
+            justify-content:center;align-items:center;
+            gap:14px;background:rgba(3,5,4,.94);
+            color:#e8e8df;font-family:Arial,sans-serif;
+            text-align:center;padding:20px;
+        `;
+
+        panel.innerHTML = `
+            <h1 style="letter-spacing:5px">VOCÊ CAIU</h1>
+            <p>A floresta ainda guarda seus segredos.</p>
+            <button id="respawnButton" style="
+                padding:13px 25px;border-radius:8px;
+                border:1px solid #687c5b;background:#202c1e;
+                color:#e4eadb;font-size:14px;cursor:pointer
+            ">Voltar ao abrigo</button>
+        `;
+
+        document.body.appendChild(panel);
     }
 
-    startDialogue(
-        "Goblin ferido",
-        "Não me mate... eu sei o que existe além da floresta.",
-        [
-            {
-                text: "Ajudar o goblin",
-                action: () => {
+    panel.style.display = "flex";
 
-                    V5.injuredGoblin.helped = true;
-
-                    player.hp =
-                        Math.min(
-                            player.maxHp,
-                            player.hp + 20
-                        );
-
-                    gainXP(40);
-
-                    showMessage(
-                        "Você ajudou o goblin ferido."
-                    );
-                }
-            },
-
-            {
-                text: "Atacar",
-                action: () => {
-
-                    V5.injuredGoblin.active =
-                        false;
-
-                    resources.wood += 2;
-
-                    gainXP(10);
-
-                    showMessage(
-                        "Você atacou o goblin."
-                    );
-                }
-            }
-        ]
-    );
+    bindRespawnButton();
 }
 
-/* =========================================================
-   V5 — ANIMALS
-========================================================= */
-
-function updateAnimals(dt) {
-
-    for (
-        const animal
-        of V5.animals
-    ) {
-
-        animal.timer -= dt;
-
-        if (animal.timer <= 0) {
-
-            animal.timer =
-                random(1, 4);
-
-            const angle =
-                random(
-                    0,
-                    Math.PI * 2
-                );
-
-            animal.dirX =
-                Math.cos(angle);
-
-            animal.dirY =
-                Math.sin(angle);
-        }
-
-        animal.x +=
-            animal.dirX *
-            20 *
-            dt;
-
-        animal.y +=
-            animal.dirY *
-            20 *
-            dt;
-
-        animal.x =
-            Math.max(
-                100,
-                Math.min(
-                    world.width - 100,
-                    animal.x
-                )
-            );
-
-        animal.y =
-            Math.max(
-                100,
-                Math.min(
-                    world.height - 100,
-                    animal.y
-                )
-            );
-    }
-}
-
-function drawAnimals() {
-
-    for (
-        const animal
-        of V5.animals
-    ) {
-
-        ctx.save();
-
-        ctx.translate(
-            animal.x,
-            animal.y
-        );
-
-        ctx.fillStyle =
-            animal.type === "deer"
-                ? "#73583c"
-                : "#aaa58c";
-
-        ctx.beginPath();
-
-        ctx.ellipse(
-            0,
-            0,
-            animal.type === "deer"
-                ? 14
-                : 9,
-            animal.type === "deer"
-                ? 8
-                : 7,
-            0,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fill();
-
-        if (
-            animal.type === "deer"
-        ) {
-
-            ctx.fillRect(
-                10,
-                -7,
-                8,
-                8
-            );
-        }
-
-        ctx.restore();
-    }
-}
-
-/* =========================================================
-   V5 — FIREFLIES
-========================================================= */
-
-function updateFireflies() {
-
-    const night =
-        worldTime / 180;
-
-    if (
-        night < .25 ||
-        night > .8
-    ) return;
-
-    for (
-        const firefly
-        of V5.fireflies
-    ) {
-
-        firefly.phase += .01;
-    }
-}
-
-function drawFireflies() {
-
-    const phase =
-        worldTime / 180;
-
-    if (
-        phase < .25 ||
-        phase > .8
-    ) return;
-
-    for (
-        const firefly
-        of V5.fireflies
-    ) {
-
-        const alpha =
-            .35 +
-            Math.sin(
-                firefly.phase
-            ) * .3;
-
-        ctx.globalAlpha =
-            Math.max(
-                .05,
-                alpha
-            );
-
-        ctx.fillStyle =
-            "#d8e987";
-
-        ctx.beginPath();
-
-        ctx.arc(
-            firefly.x,
-            firefly.y,
-            2,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fill();
-    }
-
-    ctx.globalAlpha = 1;
-}
-
-/* =========================================================
-   V5 — SHRINE
-========================================================= */
-
-function drawShrine() {
-
-    if (!V5.shrine.active) return;
-
-    const s =
-        V5.shrine;
-
-    ctx.save();
-
-    ctx.translate(
-        s.x,
-        s.y
-    );
-
-    ctx.shadowBlur = 20;
-    ctx.shadowColor =
-        "#6e4ba8";
-
-    ctx.fillStyle =
-        "#40354f";
-
-    ctx.fillRect(
-        -28,
-        -20,
-        56,
-        40
-    );
-
-    ctx.fillStyle =
-        "#9674bd";
-
-    ctx.beginPath();
-
-    ctx.arc(
-        0,
-        -25,
-        12,
-        0,
-        Math.PI * 2
-    );
-
-    ctx.fill();
-
-    ctx.restore();
-}
-
-/* =========================================================
-   V5 — WEATHER
-========================================================= */
-
-function updateWeather(dt) {
-
-    V5.weatherTimer -= dt;
-
-    if (V5.weatherTimer <= 0) {
-
-        V5.weatherTimer =
-            random(
-                35,
-                70
-            );
-
-        const roll =
-            Math.random();
-
-        if (roll < .2) {
-            V5.weather = "rain";
-            V5.weatherIntensity =
-                random(.25, .55);
-        }
-
-        else if (roll < .35) {
-            V5.weather = "fog";
-            V5.weatherIntensity =
-                random(.15, .3);
-        }
-
-        else {
-            V5.weather = "clear";
-            V5.weatherIntensity = 0;
-        }
-    }
-}
-
-function drawWeather() {
-
-    if (
-        V5.weather === "fog"
-    ) {
-
-        ctx.fillStyle =
-            `rgba(160,170,165,${V5.weatherIntensity})`;
-
-        ctx.fillRect(
-            0,
-            0,
-            W,
-            H
-        );
-    }
-
-    if (
-        V5.weather === "rain"
-    ) {
-
-        ctx.save();
-
-        ctx.strokeStyle =
-            `rgba(170,205,235,${V5.weatherIntensity})`;
-
-        ctx.lineWidth = 1;
-
-        for (let i = 0; i < 90; i++) {
-
-            const x =
-                (i * 83 +
-                performance.now() * .18) %
-                W;
-
-            const y =
-                (i * 47 +
-                performance.now() * .42) %
-                H;
-
-            ctx.beginPath();
-
-            ctx.moveTo(
-                x,
-                y
-            );
-
-            ctx.lineTo(
-                x - 5,
-                y + 14
-            );
-
-            ctx.stroke();
-        }
-
-        ctx.restore();
-    }
-}
-
-/* =========================================================
-   V5 — CLASS SYSTEM
-========================================================= */
-
-function chooseClass(type) {
-
-    V5.playerClass = type;
-    V5.classChosen = true;
-
-    if (type === "warrior") {
-
-        player.maxHp += 25;
+function bindRespawnButton() {
+    const button = element("respawnButton");
+    if (!button) return;
+
+    button.onclick = () => {
         player.hp = player.maxHp;
+        player.stamina = player.maxStamina;
+        playerClass.mana = playerClass.maxMana;
 
-        player.speed -= 5;
+        player.x = shelter.x;
+        player.y = shelter.y;
 
-        showMessage(
-            "Caminho escolhido: GUERREIRO"
-        );
-    }
+        survival.hunger = Math.max(survival.hunger, 30);
+        survival.thirst = Math.max(survival.thirst, 30);
 
-    else if (type === "mage") {
+        worldState.gameOver = false;
+        worldState.paused = false;
 
-        player.maxStamina += 25;
-        player.stamina =
-            player.maxStamina;
+        const panel = element("gameOverPanel");
+        if (panel) panel.style.display = "none";
 
-        showMessage(
-            "Caminho escolhido: MAGO"
-        );
-    }
-
-    else if (type === "rogue") {
-
-        player.speed += 25;
-
-        showMessage(
-            "Caminho escolhido: DUENDE"
-        );
-    }
-
-    gainXP(20);
+        showMessage("Você voltou ao abrigo.");
+        updateHUD();
+    };
 }
 
 /* =========================================================
-   V5 — SPECIAL MUSHROOM
+   ENDING
 ========================================================= */
 
-function drawSpecialMushroom() {
+function showEnding() {
+    worldState.paused = true;
 
-    const m =
-        V5.specialMushroom;
+    let endingPanel = element("endingPanel");
 
-    if (!m.active) return;
+    if (!endingPanel) {
+        endingPanel = document.createElement("div");
+        endingPanel.id = "endingPanel";
+
+        endingPanel.style.cssText = `
+            position:fixed;inset:0;z-index:600;
+            display:flex;flex-direction:column;
+            justify-content:center;align-items:center;
+            padding:30px;text-align:center;
+            background:rgba(4,7,5,.96);color:#e2e9d8;
+            font-family:Arial,sans-serif;
+        `;
+
+        document.body.appendChild(endingPanel);
+    }
+
+    const className = CLASS_INFO[worldState.ending]?.name || "Aventureiro";
+
+    endingPanel.innerHTML = `
+        <div style="max-width:620px">
+            <p style="letter-spacing:5px;color:#a7bd91">DARKWOOD</p>
+            <h1 style="font-size:clamp(28px,7vw,56px);margin:18px 0">
+                FIM DESTA JORNADA
+            </h1>
+            <p style="line-height:1.8;color:#c3cbbc">
+                O dragão ancestral caiu, mas a floresta ainda guarda
+                histórias que ninguém ousou contar. Seu caminho como
+                ${className} será lembrado pelos sobreviventes.
+            </p>
+            <p style="margin:18px 0;color:#9cac8b">
+                Nível ${progression.level} · ${progression.kills} criaturas derrotadas
+            </p>
+            <button id="endingContinue" style="
+                margin-top:18px;padding:13px 24px;
+                border:1px solid #788d67;border-radius:8px;
+                background:#1b291a;color:#e3e9d9;cursor:pointer
+            ">Continuar explorando</button>
+        </div>
+    `;
+
+    endingPanel.style.display = "flex";
+
+    const button = element("endingContinue");
+    if (button) {
+        button.addEventListener("click", () => {
+            endingPanel.style.display = "none";
+            worldState.paused = false;
+            worldState.ending = null;
+            showMessage("A aventura continua...");
+        });
+    }
+}
+
+/* =========================================================
+   MAIN RENDER
+========================================================= */
+
+function renderGame() {
+    if (!ctx || !canvas) return;
+
+    ctx.clearRect(0, 0, W, H);
+
+    const shakeX = camera.shake > 0 ? random(-camera.shake, camera.shake) : 0;
+    const shakeY = camera.shake > 0 ? random(-camera.shake, camera.shake) : 0;
 
     ctx.save();
+    ctx.translate(shakeX, shakeY);
 
-    ctx.translate(
-        m.x,
-        m.y
+    drawGround();
+    drawGrassDetails();
+
+    const renderables = [];
+
+    for (const structure of structures) {
+        renderables.push({
+            y: structure.y + structure.height / 2,
+            draw: () => drawStructure(structure)
+        });
+    }
+
+    for (const tree of trees) {
+        renderables.push({
+            y: tree.y + tree.radius,
+            draw: () => drawTree(tree)
+        });
+    }
+
+    for (const rock of rocks) {
+        renderables.push({
+            y: rock.y + rock.radius,
+            draw: () => drawRock(rock)
+        });
+    }
+
+    for (const mushroom of mushrooms) {
+        if (!mushroom.collected) {
+            renderables.push({
+                y: mushroom.y,
+                draw: () => drawMushroom(mushroom)
+            });
+        }
+    }
+
+    for (const wood of woods) {
+        if (!wood.collected) {
+            renderables.push({
+                y: wood.y,
+                draw: () => drawWood(wood)
+            });
+        }
+    }
+
+    for (const stone of stones) {
+        if (!stone.collected) {
+            renderables.push({
+                y: stone.y,
+                draw: () => drawStone(stone)
+            });
+        }
+    }
+
+    renderables.push({
+        y: shelter.y + shelter.height / 2,
+        draw: drawShelter
+    });
+
+    for (const shrine of shrines) {
+        renderables.push({
+            y: shrine.y,
+            draw: () => drawShrine(shrine)
+        });
+    }
+
+    for (const crystal of crystals) {
+        if (!crystal.collected) {
+            renderables.push({
+                y: crystal.y,
+                draw: () => drawCrystal(crystal)
+            });
+        }
+    }
+
+    for (const chest of chests) {
+        if (!chest.opened) {
+            renderables.push({
+                y: chest.y,
+                draw: () => drawChest(chest)
+            });
+        }
+    }
+
+    for (const animal of animals) {
+        renderables.push({
+            y: animal.y,
+            draw: () => drawAnimal(animal)
+        });
+    }
+
+    for (const npc of npcs) {
+        renderables.push({
+            y: npc.y,
+            draw: () => drawNPC(npc)
+        });
+    }
+
+    for (const enemy of enemies) {
+        if (!enemy.dead) {
+            renderables.push({
+                y: enemy.y,
+                draw: () => drawEnemy(enemy)
+            });
+        }
+    }
+
+    renderables.push({
+        y: player.y,
+        draw: drawPlayer
+    });
+
+    renderables.sort((a, b) => a.y - b.y);
+
+    for (const item of renderables) {
+        item.draw();
+    }
+
+    drawFireflies();
+    drawParticles();
+    drawFloatingTexts();
+    drawSpellEffects();
+
+    ctx.restore();
+
+    drawAtmosphere();
+    drawBossHUD();
+    drawMinimapHUD();
+
+    if (worldState.paused && !worldState.gameOver) {
+        drawPauseOverlay();
+    }
+}
+
+function drawSpellEffects() {
+    for (const spell of spells) {
+        const p = worldToScreen(spell.x, spell.y);
+
+        drawGlow(p.x, p.y, 35, "rgba(170,135,255,ALPHA)", 0.4);
+
+        ctx.fillStyle = spell.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, spell.radius, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
+function drawBossHUD() {
+    if (!activeBoss || activeBoss.dead) return;
+
+    const width = Math.min(360, W * 0.65);
+    const x = (W - width) / 2;
+    const y = 22;
+
+    roundedRect(x, y, width, 13, 6, "rgba(0,0,0,0.72)");
+    roundedRect(
+        x,
+        y,
+        width * Math.max(0, activeBoss.hp / activeBoss.maxHp),
+        13,
+        6,
+        "#9f433d"
     );
 
-    ctx.shadowBlur = 25;
-    ctx.shadowColor =
-        "#9c4cff";
+    ctx.font = "bold 10px Arial";
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#e9e4d7";
 
-    ctx.fillStyle =
-        "#c8b58a";
-
-    ctx.fillRect(
-        -4,
-        2,
-        8,
-        20
+    ctx.fillText(
+        activeBoss.bossKind === "dragon" ? "DRAGÃO ANCESTRAL" : "GUARDIÃO DAS RUÍNAS",
+        W / 2,
+        y - 6
     );
 
-    ctx.fillStyle =
-        "#7d25c9";
+    ctx.textAlign = "left";
+}
 
+function drawMinimapHUD() {
+    const size = 105;
+    const x = W - size - 15;
+    const y = H - size - 15;
+
+    if (worldState.mapOpen || W < 600) return;
+
+    ctx.save();
+    ctx.globalAlpha = 0.8;
+
+    roundedRect(x, y, size, size, 8, "rgba(7,12,8,0.78)", "rgba(210,225,195,0.15)");
+
+    const px = x + player.x / world.width * size;
+    const py = y + player.y / world.height * size;
+
+    ctx.fillStyle = "#dbe6c5";
     ctx.beginPath();
-
-    ctx.arc(
-        0,
-        3,
-        17,
-        Math.PI,
-        0
-    );
-
+    ctx.arc(px, py, 3, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle =
-        "#f0d9ff";
+    ctx.fillStyle = "#d3a06e";
+    ctx.fillRect(
+        x + shelter.x / world.width * size - 2,
+        y + shelter.y / world.height * size - 2,
+        4,
+        4
+    );
 
-    for (let i = 0; i < 5; i++) {
+    for (const crystal of crystals) {
+        if (crystal.collected) continue;
 
-        ctx.beginPath();
-
-        ctx.arc(
-            random(-10, 10),
-            random(-3, 4),
-            2,
-            0,
-            Math.PI * 2
+        ctx.fillStyle = "#83d6ed";
+        ctx.fillRect(
+            x + crystal.x / world.width * size - 1.5,
+            y + crystal.y / world.height * size - 1.5,
+            3,
+            3
         );
-
-        ctx.fill();
     }
 
     ctx.restore();
 }
 
+function drawPauseOverlay() {
+    ctx.fillStyle = "rgba(0,0,0,0.15)";
+    ctx.fillRect(0, 0, W, H);
+}
+
 /* =========================================================
-   V5 — INTERACTIONS
+   RESPONSIVE GAME INITIALIZATION
 ========================================================= */
 
-const originalInteract =
-    interact;
+function initializeGame() {
+    generateWorld();
+    createWorldEntities();
 
-interact = function() {
+    gameStarted = true;
+    worldState.started = true;
 
-    if (V5.dialogue) {
+    const loading = element("loading");
+    if (loading) {
+        loading.style.opacity = "0";
 
-        dialogueAdvance();
-
-        return;
+        window.setTimeout(() => {
+            loading.style.display = "none";
+        }, 500);
     }
 
-    const elderDistance =
-        Math.hypot(
-            player.x - V5.elder.x,
-            player.y - V5.elder.y
-        );
-
-    if (
-        V5.elder.active &&
-        elderDistance < 75
-    ) {
-
-        interactElder();
-
-        return;
+    if (!playerClass.selected) {
+        playerClass.selected = "warrior";
+        chooseClass("warrior");
     }
 
-    const goblinDistance =
-        Math.hypot(
-            player.x -
-            V5.injuredGoblin.x,
+    setQuest("first_mushroom");
+    updateHUD();
+    updateInventoryUI();
+    updateQuestUI();
 
-            player.y -
-            V5.injuredGoblin.y
-        );
+    showMessage("Explore a floresta. Encontre o cogumelo estranho.", 4);
+}
 
-    if (
-        V5.injuredGoblin.active &&
-        goblinDistance < 75
-    ) {
+/* =========================================================
+   KEYBOARD ACTIONS
+========================================================= */
 
-        interactInjuredGoblin();
+window.addEventListener("keydown", event => {
+    const key = event.key.toLowerCase();
 
-        return;
-    }
-
-    for (
-        const crystal
-        of V5.crystalObjects
-    ) {
-
-        if (crystal.collected) continue;
-
-        const d =
-            Math.hypot(
-                player.x - crystal.x,
-                player.y - crystal.y
-            );
-
-        if (d < 50) {
-
-            crystal.collected = true;
-
-            gainXP(10);
-
-            showMessage(
-                "Cristal mágico coletado."
-            );
-
-            return;
+    if (key === "escape") {
+        if (worldState.dialogueOpen) {
+            closeDialogue();
+        } else if (worldState.mapOpen) {
+            toggleMap();
+        } else {
+            togglePause();
         }
     }
 
-    for (
-        const chest
-        of V5.chests
-    ) {
+    if (key === "m") {
+        toggleMap();
+    }
 
-        if (chest.opened) continue;
+    if (key === "q") {
+        castSpecial();
+    }
 
-        const d =
-            Math.hypot(
-                player.x - chest.x,
-                player.y - chest.y
-            );
+    if (key === "h") {
+        usePotion();
+    }
 
-        if (d < 50) {
+    if (key === "f") {
+        eatMushroom();
+    }
 
-            chest.opened = true;
-
-            V5.gold += chest.gold;
-
-            gainXP(15);
-
-            showMessage(
-                `Baú aberto! +${chest.gold} ouro.`
-            );
-
-            return;
+    if (key === "e" && !worldState.dialogueOpen) {
+        if (interactWithNearestEntity()) {
+            event.preventDefault();
         }
     }
+});
+
+/* =========================================================
+   CONNECT EXISTING INTERACTION TO WORLD OBJECTS
+========================================================= */
+
+const originalInteract = interact;
+
+interact = function () {
+    if (worldState.paused || worldState.gameOver || worldState.dialogueOpen) return;
+
+    if (interactWithNearestEntity()) return;
 
     originalInteract();
 };
 
 /* =========================================================
-   V5 — UPDATE WRAPPER
+   PLAYER UPDATE WRAPPER
 ========================================================= */
 
-const originalUpdatePlayer =
-    updatePlayer;
+const originalUpdatePlayer = updatePlayer;
 
-updatePlayer = function(dt) {
+updatePlayer = function (dt) {
+    if (worldState.dialogueOpen || worldState.mapOpen) return;
 
     originalUpdatePlayer(dt);
 
-    updateSurvival(dt);
-};
+    if (player.dodgeTimer > 0) {
+        const input = getMovementInput();
+        const dx = input.x || player.dirX;
+        const dy = input.y || player.dirY;
 
-const originalUpdateQuest =
-    updateQuest;
+        const targetX = player.x + dx * 210 * dt;
+        const targetY = player.y + dy * 210 * dt;
 
-updateQuest = function() {
-
-    originalUpdateQuest();
-
-    updateAncientStones();
-
-    updateChests();
-};
-
-const originalUpdateParticles =
-    updateParticles;
-
-updateParticles = function(dt) {
-
-    originalUpdateParticles(dt);
-
-    updateFireflies();
-    updateAnimals(dt);
-
-    if (V5.flash > 0) {
-        V5.flash -= dt;
-    }
-};
-
-const originalUpdateDayNight =
-    updateDayNight;
-
-updateDayNight = function(dt) {
-
-    originalUpdateDayNight(dt);
-
-    updateWeather(dt);
-};
-
-/* =========================================================
-   V5 — HUD
-========================================================= */
-
-const originalHUD =
-    updateHUD;
-
-updateHUD = function() {
-
-    originalHUD();
-
-    const quest =
-        document.getElementById(
-            "questText"
-        );
-
-    if (!quest) return;
-
-    let extra = "";
-
-    if (V5.questComplete) {
-
-        extra =
-            "A história da floresta apenas começou...";
+        if (!isBlocked(targetX, player.y)) player.x = targetX;
+        if (!isBlocked(player.x, targetY)) player.y = targetY;
     }
 
-    else if (questStage === 2) {
-
-        extra =
-            "Fale com Eldran, o Ancião.";
-    }
-
-    else if (questStage === 3) {
-
-        extra =
-            "Ouça o Ancião e escolha seu caminho.";
-    }
-
-    else if (
-        questStage >= 4 &&
-        questStage < 6
-    ) {
-
-        const count =
-            V5.ancientStones.filter(
-                s => s.discovered
-            ).length;
-
-        extra =
-            `Encontre as pedras antigas (${count}/3).`;
-    }
-
-    else if (questStage === 6) {
-
-        extra =
-            "Retorne ao Ancião.";
-    }
-
-    if (extra) {
-        quest.textContent =
-            extra;
-    }
-};
-
-/* =========================================================
-   V5 — EXTRA HUD
-========================================================= */
-
-function drawV5HUD() {
-
-    ctx.save();
-
-    ctx.font =
-        "12px sans-serif";
-
-    ctx.textAlign =
-        "left";
-
-    const panelW = 185;
-
-    const x =
-        W -
-        panelW -
-        12;
-
-    const y = 12;
-
-    ctx.fillStyle =
-        "rgba(7,9,13,.72)";
-
-    ctx.fillRect(
-        x,
-        y,
-        panelW,
-        105
-    );
-
-    ctx.strokeStyle =
-        "rgba(173,130,230,.35)";
-
-    ctx.strokeRect(
-        x,
-        y,
-        panelW,
-        105
-    );
-
-    ctx.fillStyle =
-        "#f0e8ff";
-
-    ctx.font =
-        "bold 13px sans-serif";
-
-    ctx.fillText(
-        `Nível ${V5.level}`,
-        x + 10,
-        y + 19
-    );
-
-    ctx.font =
-        "11px sans-serif";
-
-    ctx.fillStyle =
-        "#cbbde2";
-
-    ctx.fillText(
-        `XP ${V5.xp}/${V5.xpNext}`,
-        x + 10,
-        y + 37
-    );
-
-    ctx.fillText(
-        `Ouro: ${V5.gold}`,
-        x + 10,
-        y + 53
-    );
-
-    ctx.fillText(
-        `Fome: ${Math.round(V5.hunger)}%`,
-        x + 10,
-        y + 69
-    );
-
-    ctx.fillText(
-        `Sede: ${Math.round(V5.thirst)}%`,
-        x + 10,
-        y + 85
-    );
-
-    if (V5.classChosen) {
-
-        ctx.fillStyle =
-            "#d7c4ff";
-
-        ctx.fillText(
-            V5.playerClass === "warrior"
-                ? "GUERREIRO"
-                : V5.playerClass === "mage"
-                    ? "MAGO"
-                    : "DUENDE",
-
-            x + 10,
-            y + 101
-        );
-    }
-
-    ctx.restore();
-}
-
-/* =========================================================
-   V5 — DIALOGUE DRAW
-========================================================= */
-
-function drawDialogueV5() {
-
-    const d =
-        V5.dialogue;
-
-    if (!d) return;
-
-    ctx.save();
-
-    ctx.fillStyle =
-        "rgba(0,0,0,.72)";
-
-    ctx.fillRect(
-        0,
-        0,
-        W,
-        H
-    );
-
-    const boxW =
-        Math.min(
-            W - 30,
-            760
-        );
-
-    const boxH =
-        d.choices.length
-            ? 220
-            : 175;
-
-    const x =
-        (W - boxW) / 2;
-
-    const y =
-        H -
-        boxH -
-        25;
-
-    ctx.fillStyle =
-        "rgba(15,13,21,.97)";
-
-    ctx.strokeStyle =
-        "#8c6ac0";
-
-    ctx.lineWidth = 2;
-
-    ctx.beginPath();
-
-    ctx.roundRect(
-        x,
-        y,
-        boxW,
-        boxH,
-        14
-    );
-
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle =
-        "#d6b98a";
-
-    ctx.font =
-        "bold 18px sans-serif";
-
-    ctx.fillText(
-        d.speaker,
-        x + 20,
-        y + 30
-    );
-
-    const shown =
-        d.text.substring(
-            0,
-            Math.floor(d.chars)
-        );
-
-    ctx.fillStyle =
-        "#eee";
-
-    ctx.font =
-        "15px sans-serif";
-
-    const words =
-        shown.split(" ");
-
-    let line = "";
-    let yy = y + 62;
-
-    for (
-        const word
-        of words
-    ) {
-
-        const test =
-            line
-                ? line + " " + word
-                : word;
-
-        if (
-            ctx.measureText(test).width >
-            boxW - 40
-        ) {
-
-            ctx.fillText(
-                line,
-                x + 20,
-                yy
-            );
-
-            yy += 22;
-
-            line = word;
-
-        } else {
-
-            line = test;
+    if (inputMovementActive()) {
+        footstepTimer -= dt;
+
+        if (footstepTimer <= 0) {
+            footstepTimer = 0.35;
+
+            if (Math.random() < 0.25) {
+                particles.push({
+                    x: player.x + random(-5, 5),
+                    y: player.y + 9,
+                    vx: random(-10, 10),
+                    vy: random(-8, 0),
+                    life: 0.2,
+                    maxLife: 0.2,
+                    size: 2,
+                    color: "#596c4d"
+                });
+            }
         }
     }
 
-    if (line) {
+    player.stamina = Math.min(
+        player.maxStamina,
+        player.stamina + dt * 7
+    );
 
-        ctx.fillText(
-            line,
-            x + 20,
-            yy
-        );
+    playerClass.mana = Math.min(
+        playerClass.maxMana,
+        playerClass.mana + dt * 2
+    );
+};
+
+function inputMovementActive() {
+    const input = getMovementInput();
+    return Math.hypot(input.x, input.y) > 0.1;
+}
+
+/* =========================================================
+   ENEMY UPDATE WRAPPER
+========================================================= */
+
+const originalUpdateEnemies = updateEnemies;
+
+updateEnemies = function (dt) {
+    originalUpdateEnemies(dt);
+
+    for (const enemy of enemies) {
+        if (enemy.dead) continue;
+
+        if (enemy.type === "boss") {
+            updateBoss(enemy, dt);
+        }
+
+        if (enemy.hp <= 0) {
+            killEnemy(enemy);
+        }
     }
 
-    if (
-        d.finished &&
-        d.choices.length
-    ) {
+    for (let i = enemies.length - 1; i >= 0; i--) {
+        if (enemies[i].dead && enemies.length > 30) {
+            enemies.splice(i, 1);
+        }
+    }
+};
 
-        let cy =
-            y +
-            boxH -
-            75;
+/* =========================================================
+   ATTACK WRAPPER FOR XP AND CLASS DAMAGE
+========================================================= */
 
-        d.choices.forEach(
-            (choice, i) => {
+const originalAttack = attack;
 
-                ctx.fillStyle =
-                    i === d.selected
-                        ? "#b993f0"
-                        : "#aaa";
+attack = function () {
+    if (worldState.paused || worldState.gameOver || worldState.dialogueOpen) return;
 
-                ctx.font =
-                    i === d.selected
-                        ? "bold 14px sans-serif"
-                        : "14px sans-serif";
+    const previousKills = progression.kills;
+    originalAttack();
 
-                ctx.fillText(
-                    `${i === d.selected ? ">" : " "} ${i + 1}. ${choice.text}`,
-                    x + 20,
-                    cy
-                );
+    for (const enemy of enemies) {
+        if (enemy.dead) continue;
 
-                cy += 25;
+        if (enemy.hp <= 0) {
+            killEnemy(enemy);
+        }
+    }
+
+    if (progression.kills > previousKills) {
+        gainXP((progression.kills - previousKills) * 20);
+    }
+
+    attackCombo++;
+    attackComboTimer = 0.8;
+
+    if (attackCombo >= 3) {
+        attackCombo = 0;
+        attackComboTimer = 0;
+
+        for (const enemy of enemies) {
+            if (enemy.dead) continue;
+
+            if (distance(player, enemy) < 90) {
+                enemy.hp -= applyClassBonus(10);
+                enemy.hitTimer = 0.2;
+
+                if (enemy.hp <= 0) killEnemy(enemy);
             }
-        );
-
-    } else if (d.finished) {
-
-        ctx.fillStyle =
-            "#aaa";
-
-        ctx.font =
-            "12px sans-serif";
-
-        ctx.fillText(
-            "E / Enter / toque para continuar",
-            x + 20,
-            y + boxH - 18
-        );
+        }
     }
-
-    ctx.restore();
-}
+};
 
 /* =========================================================
-   V5 — MINIMAP
+   QUEST TRIGGERS FOR COLLECTION
 ========================================================= */
 
-function drawMinimap() {
+const originalCollectObject = collectObject;
 
-    const size = 120;
+collectObject = function (object, type) {
+    originalCollectObject(object, type);
 
-    const x =
-        W -
-        size -
-        12;
-
-    const y =
-        H -
-        size -
-        12;
-
-    ctx.save();
-
-    ctx.globalAlpha = .85;
-
-    ctx.fillStyle =
-        "rgba(8,12,12,.72)";
-
-    ctx.fillRect(
-        x,
-        y,
-        size,
-        size
-    );
-
-    ctx.strokeStyle =
-        "rgba(180,180,180,.3)";
-
-    ctx.strokeRect(
-        x,
-        y,
-        size,
-        size
-    );
-
-    const sx =
-        size /
-        world.width;
-
-    const sy =
-        size /
-        world.height;
-
-    ctx.fillStyle =
-        "#b9b9b9";
-
-    ctx.fillRect(
-        x +
-        shelter.x *
-        sx - 3,
-
-        y +
-        shelter.y *
-        sy - 3,
-
-        6,
-        6
-    );
-
-    ctx.fillStyle =
-        "#e7b75b";
-
-    ctx.fillRect(
-        x +
-        player.x *
-        sx - 2,
-
-        y +
-        player.y *
-        sy - 2,
-
-        4,
-        4
-    );
-
-    ctx.fillStyle =
-        "#6c8f58";
-
-    for (
-        const enemy
-        of enemies
-    ) {
-
-        if (enemy.hp <= 0) continue;
-
-        ctx.fillRect(
-            x +
-            enemy.x *
-            sx - 1,
-
-            y +
-            enemy.y *
-            sy - 1,
-
-            3,
-            3
-        );
+    if (object.strange || object === mushrooms.find(item => item === object && item.strange)) {
+        advanceQuest("first_mushroom");
     }
-
-    ctx.fillStyle =
-        "#a97cff";
-
-    for (
-        const stone
-        of V5.ancientStones
-    ) {
-
-        ctx.fillRect(
-            x +
-            stone.x *
-            sx - 1,
-
-            y +
-            stone.y *
-            sy - 1,
-
-            3,
-            3
-        );
-    }
-
-    ctx.restore();
-}
-
-/* =========================================================
-   RENDER
-========================================================= */
-
-function render() {
-
-    ctx.clearRect(
-        0,
-        0,
-        W,
-        H
-    );
-
-    const shakeX =
-        camera.shake > 0
-            ? random(
-                -camera.shake,
-                camera.shake
-            )
-            : 0;
-
-    const shakeY =
-        camera.shake > 0
-            ? random(
-                -camera.shake,
-                camera.shake
-            )
-            : 0;
-
-    ctx.save();
-
-    ctx.translate(
-        W / 2 -
-        camera.x +
-        shakeX,
-
-        H / 2 -
-        camera.y +
-        shakeY
-    );
-
-    drawGround();
-    drawTrees();
-    drawRocks();
-    drawMushrooms();
-    drawResources();
-    drawShelter();
-    drawCampfire();
-    drawEnemies();
-
-    drawAncientStones();
-    drawCrystalObjects();
-    drawChest();
-    drawShrine();
-    drawSpecialMushroom();
-    drawInjuredGoblin();
-    drawAnimals();
-    drawFireflies();
-    drawElderV5();
-
-    drawPlayer();
-    drawParticles();
-
-    ctx.restore();
-
-    drawNight();
-    drawWeather();
-    drawVignette();
-
-    drawV5HUD();
-    drawMinimap();
-
-    if (V5.dialogue) {
-        drawDialogueV5();
-    }
-
-    if (messageTimer > 0) {
-
-        ctx.save();
-
-        ctx.textAlign =
-            "center";
-
-        ctx.font =
-            "bold 15px sans-serif";
-
-        const width =
-            Math.min(
-                W - 40,
-                500
-            );
-
-        ctx.fillStyle =
-            "rgba(10,10,15,.85)";
-
-        ctx.fillRect(
-            W / 2 -
-            width / 2,
-
-            25,
-
-            width,
-            42
-        );
-
-        ctx.fillStyle =
-            "#eee";
-
-        ctx.fillText(
-            messageText,
-            W / 2,
-            51
-        );
-
-        ctx.restore();
-    }
-
-    if (V5.flash > 0) {
-
-        ctx.save();
-
-        ctx.fillStyle =
-            `rgba(180,120,255,${Math.min(
-                .28,
-                V5.flash * .28
-            )})`;
-
-        ctx.fillRect(
-            0,
-            0,
-            W,
-            H
-        );
-
-        ctx.restore();
-    }
-
-    if (V5.paused) {
-
-        ctx.save();
-
-        ctx.fillStyle =
-            "rgba(0,0,0,.62)";
-
-        ctx.fillRect(
-            0,
-            0,
-            W,
-            H
-        );
-
-        ctx.textAlign =
-            "center";
-
-        ctx.fillStyle =
-            "#eee";
-
-        ctx.font =
-            "bold 34px sans-serif";
-
-        ctx.fillText(
-            "PAUSADO",
-            W / 2,
-            H / 2 - 10
-        );
-
-        ctx.font =
-            "14px sans-serif";
-
-        ctx.fillStyle =
-            "#bbb";
-
-        ctx.fillText(
-            "Pressione ESC para continuar",
-            W / 2,
-            H / 2 + 22
-        );
-
-        ctx.restore();
-    }
-}
+};
 
 /* =========================================================
    GAME LOOP
 ========================================================= */
 
-let lastTime =
-    performance.now();
-
-function gameLoop(now) {
-
-    const dt =
-        Math.min(
-            .033,
-            (now - lastTime) /
-            1000
-        );
-
-    lastTime = now;
-
-    if (!V5.paused) {
-
-        updatePlayer(dt);
-        updateEnemies(dt);
-        updateQuest();
-        updateDayNight(dt);
-        updateCamera(dt);
-        updateParticles(dt);
-        updateDialogue(dt);
-        updateMessages(dt);
+function gameLoop(timestamp) {
+    if (!worldState.lastTimestamp) {
+        worldState.lastTimestamp = timestamp;
     }
 
-    render();
+    const rawDelta = (timestamp - worldState.lastTimestamp) / 1000;
+    const dt = Math.min(0.033, Math.max(0, rawDelta));
 
-    requestAnimationFrame(
-        gameLoop
-    );
+    worldState.lastTimestamp = timestamp;
+
+    if (gameStarted) {
+        updateGame(dt);
+        renderGame();
+    }
+
+    requestAnimationFrame(gameLoop);
 }
 
-requestAnimationFrame(
-    gameLoop
-);
-
 /* =========================================================
-   DIALOGUE UPDATE
+   STARTUP
 ========================================================= */
 
-function updateDialogue(dt) {
+function startDarkwood() {
+    try {
+        initializeGame();
+    } catch (error) {
+        console.error("Erro ao iniciar Darkwood:", error);
 
-    const d =
-        V5.dialogue;
+        const loading = element("loading");
+        if (loading) {
+            loading.style.display = "flex";
+            loading.style.opacity = "1";
 
-    if (!d) return;
-
-    if (
-        d.chars <
-        d.text.length
-    ) {
-
-        d.timer += dt;
-
-        while (
-            d.timer >= .025 &&
-            d.chars <
-            d.text.length
-        ) {
-
-            d.timer -= .025;
-
-            d.chars++;
-        }
-
-        if (
-            d.chars >=
-            d.text.length
-        ) {
-
-            d.finished = true;
+            const message = document.createElement("p");
+            message.textContent = "Erro ao iniciar o jogo. Verifique o console.";
+            message.style.color = "#e59c91";
+            loading.appendChild(message);
         }
     }
 }
 
+startDarkwood();
+requestAnimationFrame(gameLoop);
+```
+
+Pensou por 4m 2s
+
+```javascript
 /* =========================================================
-   MESSAGES UPDATE
+   MOVEMENT AND AI BASE FUNCTIONS
 ========================================================= */
 
-function updateMessages(dt) {
+function updatePlayer(dt) {
+    player.attackCooldown = Math.max(0, player.attackCooldown - dt);
+    player.attackTimer = Math.max(0, player.attackTimer - dt);
+    player.dodgeCooldown = Math.max(0, player.dodgeCooldown - dt);
+    player.dodgeTimer = Math.max(0, player.dodgeTimer - dt);
+    player.invulnerable = Math.max(0, player.invulnerable - dt);
+    player.hurtTimer = Math.max(0, player.hurtTimer - dt);
 
-    if (messageTimer > 0) {
+    if (inventoryOpen || worldState.dialogueOpen || worldState.mapOpen) return;
 
-        messageTimer -= dt;
+    const input = getMovementInput();
+
+    if (Math.hypot(input.x, input.y) > 0.1) {
+        player.dirX = input.x;
+        player.dirY = input.y;
+    }
+
+    let speed = player.speed;
+
+    if (player.dodgeTimer > 0) {
+        speed *= 2.1;
+    }
+
+    if (survival.hunger <= 0 || survival.thirst <= 0) {
+        speed *= 0.75;
+    }
+
+    if (isNightTime() && playerClass.selected === "rogue") {
+        speed *= 1.05;
+    }
+
+    const moveX = input.x * speed * dt;
+    const moveY = input.y * speed * dt;
+
+    const nextX = player.x + moveX;
+    const nextY = player.y + moveY;
+
+    if (!isBlocked(nextX, player.y)) {
+        player.x = nextX;
+    }
+
+    if (!isBlocked(player.x, nextY)) {
+        player.y = nextY;
+    }
+
+    player.x = Math.max(player.radius, Math.min(world.width - player.radius, player.x));
+    player.y = Math.max(player.radius, Math.min(world.height - player.radius, player.y));
+}
+
+function updateEnemies(dt) {
+    for (const enemy of enemies) {
+        if (enemy.dead || enemy.hp <= 0) continue;
+
+        enemy.hitTimer = Math.max(0, (enemy.hitTimer || 0) - dt);
+        enemy.attackCooldown = Math.max(0, (enemy.attackCooldown || 0) - dt);
+
+        const dx = player.x - enemy.x;
+        const dy = player.y - enemy.y;
+        const dist = Math.hypot(dx, dy);
+
+        if (enemy.type === "boss") {
+            if (dist > enemy.radius + player.radius + 8) {
+                moveEnemyToward(enemy, player.x, player.y, dt);
+            } else if (enemy.attackCooldown <= 0) {
+                damagePlayer(enemy.damage || 18, enemy);
+                enemy.attackCooldown = 1.1;
+            }
+
+            continue;
+        }
+
+        if (dist < 380) {
+            if (dist > enemy.radius + player.radius + 8) {
+                moveEnemyToward(enemy, player.x, player.y, dt);
+            } else if (enemy.attackCooldown <= 0) {
+                damagePlayer(enemy.damage || 8, enemy);
+                enemy.attackCooldown = 1.25;
+            }
+        } else {
+            enemy.wanderTimer = (enemy.wanderTimer || 0) - dt;
+
+            if (enemy.wanderTimer <= 0) {
+                enemy.wanderTimer = random(1.5, 4);
+                enemy.wanderX = random(-1, 1);
+                enemy.wanderY = random(-1, 1);
+
+                const len = Math.hypot(enemy.wanderX, enemy.wanderY) || 1;
+                enemy.wanderX /= len;
+                enemy.wanderY /= len;
+            }
+
+            const speed = (enemy.speed || 45) * 0.3;
+            const nx = enemy.x + enemy.wanderX * speed * dt;
+            const ny = enemy.y + enemy.wanderY * speed * dt;
+
+            if (!isBlocked(nx, enemy.y, enemy.radius)) enemy.x = nx;
+            if (!isBlocked(enemy.x, ny, enemy.radius)) enemy.y = ny;
+        }
     }
 }
 
-/* =========================================================
-   MOBILE CONTROLS
-========================================================= */
+function moveEnemyToward(enemy, targetX, targetY, dt) {
+    const dx = targetX - enemy.x;
+    const dy = targetY - enemy.y;
+    const len = Math.hypot(dx, dy) || 1;
 
-const attackButton =
-    document.getElementById(
-        "attackButton"
-    );
+    const speed = enemy.speed || 45;
+    const nx = enemy.x + dx / len * speed * dt;
+    const ny = enemy.y + dy / len * speed * dt;
 
-const dodgeButton =
-    document.getElementById(
-        "dodgeButton"
-    );
-
-const interactButton =
-    document.getElementById(
-        "interactButton"
-    );
-
-if (attackButton) {
-
-    attackButton.addEventListener(
-        "pointerdown",
-        e => {
-
-            e.preventDefault();
-
-            attack();
-        }
-    );
+    if (!isBlocked(nx, enemy.y, enemy.radius)) enemy.x = nx;
+    if (!isBlocked(enemy.x, ny, enemy.radius)) enemy.y = ny;
 }
-
-if (dodgeButton) {
-
-    dodgeButton.addEventListener(
-        "pointerdown",
-        e => {
-
-            e.preventDefault();
-
-            dodge();
-        }
-    );
-}
-
-if (interactButton) {
-
-    interactButton.addEventListener(
-        "pointerdown",
-        e => {
-
-            e.preventDefault();
-
-            interact();
-        }
-    );
-}
-
-/* =========================================================
-   DIALOGUE TOUCH
-========================================================= */
-
-canvas.addEventListener(
-    "pointerdown",
-    e => {
-
-        if (!V5.dialogue) return;
-
-        const d =
-            V5.dialogue;
-
-        if (
-            d.choices.length &&
-            d.finished
-        ) {
-
-            const boxW =
-                Math.min(
-                    W - 30,
-                    760
-                );
-
-            const boxH = 220;
-
-            const x =
-                (W - boxW) / 2;
-
-            const y =
-                H -
-                boxH -
-                25;
-
-            if (
-                e.clientX >= x &&
-                e.clientX <= x + boxW &&
-                e.clientY >=
-                    y + boxH - 100
-            ) {
-
-                const localY =
-                    e.clientY -
-                    (y + boxH - 75);
-
-                const index =
-                    Math.floor(
-                        localY / 25
-                    );
-
-                if (
-                    index >= 0 &&
-                    index <
-                    d.choices.length
-                ) {
-
-                    d.selected =
-                        index;
-
-                    chooseDialogue(
-                        index
-                    );
-
-                    return;
-                }
-            }
-        }
-
-        dialogueAdvance();
-    }
-);
-
-/* =========================================================
-   DIALOGUE KEYBOARD
-========================================================= */
-
-window.addEventListener(
-    "keydown",
-    e => {
-
-        if (!V5.dialogue) return;
-
-        const d =
-            V5.dialogue;
-
-        if (
-            d.choices.length &&
-            d.finished
-        ) {
-
-            if (
-                e.key === "ArrowDown"
-            ) {
-
-                d.selected =
-                    Math.min(
-                        d.choices.length - 1,
-                        d.selected + 1
-                    );
-            }
-
-            if (
-                e.key === "ArrowUp"
-            ) {
-
-                d.selected =
-                    Math.max(
-                        0,
-                        d.selected - 1
-                    );
-            }
-
-            if (
-                e.key === "1"
-            ) {
-
-                chooseDialogue(0);
-            }
-
-            if (
-                e.key === "2"
-            ) {
-
-                chooseDialogue(1);
-            }
-        }
-
-        if (
-            e.key === "Enter"
-        ) {
-
-            dialogueAdvance();
-        }
-    }
-);
-
-/* =========================================================
-   PAUSE
-========================================================= */
-
-window.addEventListener(
-    "keydown",
-    e => {
-
-        if (
-            e.key === "Escape" &&
-            !V5.dialogue
-        ) {
-
-            V5.paused =
-                !V5.paused;
-        }
-    }
-);
-
-/* =========================================================
-   INVENTORY EXTRA BUTTON
-========================================================= */
-
-const eatButton =
-    document.getElementById(
-        "eatMushroom"
-    );
-
-if (eatButton) {
-
-    eatButton.addEventListener(
-        "click",
-        consumeMushroom
-    );
-}
-
-/* =========================================================
-   START
-========================================================= */
-
-updateHUD();
-updateInventoryUI();
-
-const loading =
-    document.getElementById(
-        "loading"
-    );
-
-if (loading) {
-
-    setTimeout(
-        () => {
-            loading.style.display =
-                "none";
-        },
-        500
-    );
-}
-
-setTimeout(
-    () => {
-
-        if (
-            questStage === 0
-        ) {
-
-            showMessage(
-                "Há algo estranho além das árvores...",
-                3
-            );
-        }
-    },
-    1600
-);
-
-V5.initialized = true;
-        
-
-    /* =====================================================
-       INTERACTION
-    ===================================================== */
-
-    function talkToNearestV5(){
-
-        if(V5.paused) return;
-
-        if(V5.dialogue){
-            dialogueAdvance();
-            return;
-        }
-
-        const elderDistance =
-            v5Dist(
-                player.x,
-                player.y,
-                V5.elder.x,
-                V5.elder.y
-            );
-
-        if(elderDistance < 75){
-            talkToElder();
-            return;
-        }
-
-        const injuredDistance =
-            v5Dist(
-                player.x,
-                player.y,
-                V5.injuredGoblin.x,
-                V5.injuredGoblin.y
-            );
-
-        if(
-            V5.injuredGoblin.active &&
-            injuredDistance < 75
-        ){
-
-            openDialogue(
-                "Goblin ferido",
-                "Não... não me mate. A floresta está cheia de monstros. Posso mostrar um caminho secreto.",
-                [
-                    {
-                        id:"helpGoblin",
-                        text:"Ajudar o goblin"
-                    },
-                    {
-                        id:"killGoblin",
-                        text:"Atacar o goblin"
-                    }
-                ]
-            );
-
-            return;
-        }
-
-        const stone =
-            v5Nearest(
-                V5.ancientStones,
-                75,
-                s => s.active
-            );
-
-        if(stone){
-
-            if(!stone.discovered){
-
-                stone.discovered = true;
-
-                V5.discovered.add(
-                    `${stone.x}:${stone.y}`
-                );
-
-                v5AddXP(20);
-
-                v5Show(
-                    "Você encontrou uma pedra antiga. Ela parece guardar uma memória."
-                );
-
-                questStage =
-                    Math.max(
-                        questStage,
-                        4
-                    );
-
-            }else{
-
-                v5Show(
-                    "A pedra antiga pulsa com uma energia estranha."
-                );
-            }
-
-            return;
-        }
-
-        const crystal =
-            v5Nearest(
-                V5.crystals,
-                65,
-                c => !c.collected
-            );
-
-        if(crystal){
-
-            crystal.collected = true;
-
-            gold += 0;
-
-            V5.gold += 5;
-
-            v5AddXP(10);
-
-            v5Show(
-                "Cristal mágico encontrado. +5 ouro."
-            );
-
-            return;
-        }
-
-        if(
-            V5.chest &&
-            !V5.chest.opened &&
-            v5Dist(
-                player.x,
-                player.y,
-                V5.chest.x,
-                V5.chest.y
-            ) < 75
-        ){
-
-            openChestV5();
-
-            return;
-        }
-
-        if(
-            V5.shrine &&
-            !V5.shrine.used &&
-            v5Dist(
-                player.x,
-                player.y,
-                V5.shrine.x,
-                V5.shrine.y
-            ) < 85
-        ){
-
-            useShrineV5();
-
-            return;
-        }
-
-        interact();
-    }
-
-    /* =====================================================
-       POTION
-    ===================================================== */
-
-    function usePotionV5(){
-
-        if(V5.paused) return;
-
-        if(craftedItems.potion <= 0){
-            v5Show("Você não possui poções.");
-            return;
-        }
-
-        if(player.hp >= player.maxHp){
-            v5Show("Sua vida já está cheia.");
-            return;
-        }
-
-        craftedItems.potion--;
-
-        player.hp =
-            Math.min(
-                player.maxHp,
-                player.hp + 35
-            );
-
-        for(let i=0;i<12;i++){
-            particles.push({
-                x:player.x,
-                y:player.y,
-                vx:v5Random(-45,45),
-                vy:v5Random(-45,45),
-                life:.7,
-                maxLife:.7,
-                size:v5Random(2,5),
-                type:"craft"
-            });
-        }
-
-        v5Show(
-            "Poção utilizada. +35 HP."
-        );
-
-        updateInventoryUI();
-    }
-
-    /* =====================================================
-       SPECIAL ATTACK
-    ===================================================== */
-
-    function performSpecialAttackV5(){
-
-        if(V5.paused || V5.dialogue) return;
-
-        if(!V5.classChosen){
-            v5Show(
-                "Escolha um caminho antes de usar habilidades."
-            );
-            return;
-        }
-
-        if(player.stamina < 30){
-            v5Show("Stamina insuficiente.");
-            return;
-        }
-
-        player.stamina -= 30;
-
-        camera.shake = 9;
-
-        for(const enemy of enemies){
-
-            if(enemy.hp <= 0) continue;
-
-            const dx =
-                enemy.x - player.x;
-
-            const dy =
-                enemy.y - player.y;
-
-            const dist =
-                Math.hypot(dx,dy);
-
-            if(dist > 130) continue;
-
-            const nx =
-                dx / Math.max(1,dist);
-
-            const ny =
-                dy / Math.max(1,dist);
-
-            let damage = 35;
-
-            if(
-                V5.playerClass === "warrior"
-            ){
-                damage = 55;
-            }
-
-            if(
-                V5.playerClass === "mage"
-            ){
-                damage = 45;
-            }
-
-            if(
-                V5.playerClass === "rogue"
-            ){
-                damage = 40;
-            }
-
-            enemy.hp -= damage;
-
-            enemy.hitTimer = .35;
-
-            enemy.x += nx * 35;
-            enemy.y += ny * 35;
-
-            for(let p=0;p<8;p++){
-
-                particles.push({
-                    x:enemy.x,
-                    y:enemy.y,
-                    vx:v5Random(-90,90),
-                    vy:v5Random(-90,90),
-                    life:.45,
-                    maxLife:.45,
-                    size:v5Random(2,6),
-                    type:"hit"
-                });
-            }
-
-            if(enemy.hp <= 0){
-
-                V5.gold += 2;
-
-                v5AddXP(20);
-
-                resources.wood++;
-
-                for(let p=0;p<12;p++){
-
-                    particles.push({
-                        x:enemy.x,
-                        y:enemy.y,
-                        vx:v5Random(-100,100),
-                        vy:v5Random(-100,100),
-                        life:.8,
-                        maxLife:.8,
-                        size:v5Random(2,6),
-                        type:"death"
-                    });
-                }
-            }
-        }
-
-        v5Show(
-            V5.playerClass === "mage"
-                ? "MAGIA LIBERADA!"
-                : V5.playerClass === "rogue"
-                    ? "ATAQUE SOMBRIO!"
-                    : "GOLPE PODEROSO!"
-        );
-    }
-
-    /* =====================================================
-       CHEST
-    ===================================================== */
-
-    function openChestV5(){
-
-        if(V5.chest.opened){
-            v5Show("O baú está vazio.");
-            return;
-        }
-
-        V5.chest.opened = true;
-
-        const reward =
-            Math.floor(
-                v5Random(15,31)
-            );
-
-        V5.gold += reward;
-
-        resources.wood += 5;
-        resources.stone += 5;
-        resources.mushroom += 2;
-
-        v5AddXP(40);
-
-        camera.shake = 4;
-
-        for(let i=0;i<20;i++){
-
-            particles.push({
-                x:V5.chest.x,
-                y:V5.chest.y,
-                vx:v5Random(-120,120),
-                vy:v5Random(-120,120),
-                life:1,
-                maxLife:1,
-                size:v5Random(2,7),
-                type:"craft"
-            });
-        }
-
-        v5Show(
-            `Baú aberto! +${reward} ouro, recursos e XP.`
-        );
-    }
-
-    /* =====================================================
-       SHRINE
-    ===================================================== */
-
-    function useShrineV5(){
-
-        if(V5.shrine.used){
-            v5Show(
-                "O santuário está adormecido."
-            );
-            return;
-        }
-
-        V5.shrine.used = true;
-
-        player.hp =
-            player.maxHp;
-
-        player.stamina =
-            player.maxStamina;
-
-        V5.hunger =
-            Math.min(
-                100,
-                V5.hunger + 30
-            );
-
-        V5.thirst =
-            Math.min(
-                100,
-                V5.thirst + 30
-            );
-
-        V5.reputation += 5;
-
-        v5AddXP(60);
-
-        V5.flash = 1.5;
-
-        v5Show(
-            "O santuário restaurou suas forças."
-        );
-    }
-
-    /* =====================================================
-       HUNGER / THIRST
-    ===================================================== */
-
-    let survivalTimerV5 = 0;
-
-    function updateSurvivalV5(dt){
-
-        survivalTimerV5 += dt;
-
-        if(survivalTimerV5 < 4) return;
-
-        survivalTimerV5 = 0;
-
-        V5.hunger =
-            Math.max(
-                0,
-                V5.hunger - .35
-            );
-
-        V5.thirst =
-            Math.max(
-                0,
-                V5.thirst - .55
-            );
-
-        if(V5.hunger <= 0){
-
-            player.hp =
-                Math.max(
-                    1,
-                    player.hp - 1
-                );
-        }
-
-        if(V5.thirst <= 0){
-
-            player.hp =
-                Math.max(
-                    1,
-                    player.hp - 1.5
-                );
-        }
-
-        if(
-            V5.hunger < 20 &&
-            player.stamina > 0
-        ){
-            player.stamina =
-                Math.max(
-                    0,
-                    player.stamina - .5
-                );
-        }
-    }
-
-    /* =====================================================
-       FOOD / WATER
-    ===================================================== */
-
-    function consumeMushroomV5(){
-
-        if(resources.mushroom <= 0){
-            v5Show("Você não possui cogumelos.");
-            return;
-        }
-
-        resources.mushroom--;
-
-        V5.hunger =
-            Math.min(
-                100,
-                V5.hunger + 15
-            );
-
-        v5Show(
-            "Você comeu um cogumelo. +15 fome."
-        );
-
-        updateHUD();
-        updateInventoryUI();
-    }
-
-    /* =====================================================
-       WEATHER
-    ===================================================== */
-
-    const weatherTypes = [
-        "clear",
-        "fog",
-        "rain",
-        "storm"
-    ];
-
-    function changeWeatherV5(){
-
-        const index =
-            Math.floor(
-                Math.random() *
-                weatherTypes.length
-            );
-
-        V5.weather =
-            weatherTypes[index];
-
-        V5.weatherIntensity =
-            V5.weather === "clear"
-                ? 0
-                : v5Random(.25,.85);
-
-        V5.weatherDuration =
-            v5Random(
-                30,
-                70
-            );
-
-        V5.weatherTimer = 0;
-
-        if(V5.weather === "rain"){
-            v5Show(
-                "A chuva começa a cair sobre a floresta."
-            );
-        }
-
-        if(V5.weather === "storm"){
-            v5Show(
-                "Uma tempestade se aproxima."
-            );
-        }
-
-        if(V5.weather === "fog"){
-            v5Show(
-                "Uma névoa estranha cobre a floresta."
-            );
-        }
-    }
-
-    function updateWeatherV5(dt){
-
-        V5.weatherTimer += dt;
-
-        if(
-            V5.weatherTimer >
-            V5.weatherDuration
-        ){
-            changeWeatherV5();
-        }
-
-        if(
-            V5.weather === "rain" ||
-            V5.weather === "storm"
-        ){
-
-            if(
-                V5.rainDrops.length <
-                (
-                    V5.weather === "storm"
-                        ? 120
-                        : 70
-                )
-            ){
-
-                V5.rainDrops.push({
-                    x:v5Random(0,W),
-                    y:v5Random(-H,0),
-                    speed:v5Random(350,650),
-                    length:v5Random(8,18)
-                });
-            }
-
-            for(
-                const drop of V5.rainDrops
-            ){
-
-                drop.y +=
-                    drop.speed * dt;
-
-                if(drop.y > H){
-                    drop.y =
-                        v5Random(-100,0);
-
-                    drop.x =
-                        v5Random(0,W);
-                }
-            }
-        }
-    }
-
-    function drawWeather(){
-
-        if(
-            V5.weather === "fog"
-        ){
-
-            ctx.save();
-
-            const alpha =
-                .08 +
-                V5.weatherIntensity * .16;
-
-            ctx.fillStyle =
-                `rgba(185,190,200,${alpha})`;
-
-            ctx.fillRect(
-                0,
-                0,
-                W,
-                H
-            );
-
-            ctx.restore();
-        }
-
-        if(
-            V5.weather === "rain" ||
-            V5.weather === "storm"
-        ){
-
-            ctx.save();
-
-            ctx.strokeStyle =
-                V5.weather === "storm"
-                    ? "rgba(180,200,230,.48)"
-                    : "rgba(170,190,220,.30)";
-
-            ctx.lineWidth =
-                V5.weather === "storm"
-                    ? 1.5
-                    : 1;
-
-            ctx.beginPath();
-
-            for(
-                const drop of V5.rainDrops
-            ){
-
-                ctx.moveTo(
-                    drop.x,
-                    drop.y
-                );
-
-                ctx.lineTo(
-                    drop.x - 4,
-                    drop.y + drop.length
-                );
-            }
-
-            ctx.stroke();
-
-            ctx.restore();
-        }
-
-        if(
-            V5.weather === "storm" &&
-            Math.random() < .003
-        ){
-
-            ctx.fillStyle =
-                "rgba(230,235,255,.18)";
-
-            ctx.fillRect(
-                0,
-                0,
-                W,
-                H
-            );
-
-            camera.shake =
-                Math.max(
-                    camera.shake,
-                    5
-                );
-        }
-    }
-
-    /* =====================================================
-       ANIMALS
-    ===================================================== */
-
-    function updateAnimalsV5(dt){
-
-        for(
-            const animal of V5.animals
-        ){
-
-            animal.timer -= dt;
-
-            if(
-                animal.timer <= 0
-            ){
-
-                animal.timer =
-                    v5Random(
-                        1,
-                        4
-                    );
-
-                const angle =
-                    v5Random(
-                        0,
-                        Math.PI * 2
-                    );
-
-                const speed =
-                    animal.type === "rabbit"
-                        ? 35
-                        : 20;
-
-                animal.vx =
-                    Math.cos(angle) *
-                    speed;
-
-                animal.vy =
-                    Math.sin(angle) *
-                    speed;
-            }
-
-            animal.x +=
-                animal.vx * dt;
-
-            animal.y +=
-                animal.vy * dt;
-
-            animal.x =
-                v5Clamp(
-                    animal.x,
-                    100,
-                    WORLD.width - 100
-                );
-
-            animal.y =
-                v5Clamp(
-                    animal.y,
-                    100,
-                    WORLD.height - 100
-                );
-        }
-    }
-
-    function drawAnimals(){
-
-        for(
-            const animal of V5.animals
-        ){
-
-            const s =
-                worldToScreen(
-                    animal.x,
-                    animal.y
-                );
-
-            ctx.save();
-
-            ctx.translate(
-                s.x,
-                s.y
-            );
-
-            if(
-                animal.type === "rabbit"
-            ){
-
-                ctx.fillStyle =
-                    "#8f806f";
-
-                ctx.beginPath();
-
-                ctx.ellipse(
-                    0,
-                    3,
-                    10,
-                    7,
-                    0,
-                    0,
-                    Math.PI * 2
-                );
-
-                ctx.fill();
-
-                ctx.fillStyle =
-                    "#aa9985";
-
-                ctx.beginPath();
-
-                ctx.ellipse(
-                    -5,
-                    -7,
-                    4,
-                    10,
-                    -.25,
-                    0,
-                    Math.PI * 2
-                );
-
-                ctx.fill();
-
-                ctx.beginPath();
-
-                ctx.ellipse(
-                    2,
-                    -8,
-                    4,
-                    10,
-                    .2,
-                    0,
-                    Math.PI * 2
-                );
-
-                ctx.fill();
-
-            }else{
-
-                ctx.fillStyle =
-                    "#777b82";
-
-                ctx.beginPath();
-
-                ctx.ellipse(
-                    0,
-                    0,
-                    12,
-                    6,
-                    -.2,
-                    0,
-                    Math.PI * 2
-                );
-
-                ctx.fill();
-
-                ctx.beginPath();
-
-                ctx.moveTo(
-                    6,
-                    -1
-                );
-
-                ctx.lineTo(
-                    17,
-                    -6
-                );
-
-                ctx.lineTo(
-                    11,
-                    2
-                );
-
-                ctx.closePath();
-
-                ctx.fill();
-            }
-
-            ctx.restore();
-        }
-    }
-
-    /* =====================================================
-       FIREFLIES
-    ===================================================== */
-
-    function updateFirefliesV5(dt){
-
-        for(
-            const f of V5.fireflies
-        ){
-
-            f.phase +=
-                dt * f.speed;
-        }
-    }
-
-    function drawFireflies(){
-
-        if(
-            getNightAmount() < .15
-        ) return;
-
-        for(
-            const f of V5.fireflies
-        ){
-
-            const s =
-                worldToScreen(
-                    f.x,
-                    f.y
-                );
-
-            const glow =
-                .4 +
-                Math.sin(f.phase) *
-                .35;
-
-            ctx.save();
-
-            ctx.globalAlpha =
-                Math.max(
-                    0,
-                    glow
-                );
-
-            ctx.fillStyle =
-                "#d8e89a";
-
-            ctx.shadowColor =
-                "#d8e89a";
-
-            ctx.shadowBlur =
-                10;
-
-            ctx.beginPath();
-
-            ctx.arc(
-                s.x,
-                s.y,
-                2,
-                0,
-                Math.PI * 2
-            );
-
-            ctx.fill();
-
-            ctx.restore();
-        }
-    }
-
-    /* =====================================================
-       ANCIENT STONES
-    ===================================================== */
-
-    function drawAncientStones(){
-
-        for(
-            const stone of V5.ancientStones
-        ){
-
-            const s =
-                worldToScreen(
-                    stone.x,
-                    stone.y
-                );
-
-            ctx.save();
-
-            ctx.translate(
-                s.x,
-                s.y
-            );
-
-            ctx.fillStyle =
-                "#44474a";
-
-            ctx.beginPath();
-
-            ctx.moveTo(
-                -stone.r,
-                15
-            );
-
-            ctx.lineTo(
-                -20,
-                -18
-            );
-
-            ctx.lineTo(
-                0,
-                -stone.r
-            );
-
-            ctx.lineTo(
-                23,
-                -15
-            );
-
-            ctx.lineTo(
-                stone.r,
-                18
-            );
-
-            ctx.closePath();
-
-            ctx.fill();
-
-            ctx.strokeStyle =
-                stone.discovered
-                    ? "#8b6fc4"
-                    : "#676a6c";
-
-            ctx.lineWidth = 2;
-
-            ctx.stroke();
-
-            if(stone.discovered){
-
-                ctx.strokeStyle =
-                    "rgba(160,130,230,.75)";
-
-                ctx.beginPath();
-
-                ctx.moveTo(-8,8);
-                ctx.lineTo(0,-14);
-                ctx.lineTo(8,8);
-                ctx.moveTo(-13,-1);
-                ctx.lineTo(13,-1);
-
-                ctx.stroke();
-            }
-
-            ctx.restore();
-        }
-    }
-
-    /* =====================================================
-       CRYSTALS
-    ===================================================== */
-
-    function drawCrystalObjects(){
-
-        for(
-            const crystal of V5.crystals
-        ){
-
-            if(crystal.collected)
-                continue;
-
-            const s =
-                worldToScreen(
-                    crystal.x,
-                    crystal.y
-                );
-
-            ctx.save();
-
-            ctx.translate(
-                s.x,
-                s.y
-            );
-
-            ctx.shadowColor =
-                "#9e7bea";
-
-            ctx.shadowBlur =
-                12;
-
-            ctx.fillStyle =
-                "#8065c5";
-
-            ctx.beginPath();
-
-            ctx.moveTo(
-                0,
-                -12
-            );
-
-            ctx.lineTo(
-                8,
-                4
-            );
-
-            ctx.lineTo(
-                0,
-                12
-            );
-
-            ctx.lineTo(
-                -8,
-                4
-            );
-
-            ctx.closePath();
-
-            ctx.fill();
-
-            ctx.restore();
-        }
-    }
-
-    /* =====================================================
-       CHEST
-    ===================================================== */
-
-    function drawChest(){
-
-        if(!V5.chest)
-            return;
-
-        const s =
-            worldToScreen(
-                V5.chest.x,
-                V5.chest.y
-            );
-
-        ctx.save();
-
-        ctx.translate(
-            s.x,
-            s.y
-        );
-
-        ctx.fillStyle =
-            V5.chest.opened
-                ? "#51402e"
-                : "#80592d";
-
-        ctx.fillRect(
-            -20,
-            -12,
-            40,
-            25
-        );
-
-        ctx.fillStyle =
-            "#c5a44c";
-
-        ctx.fillRect(
-            -3,
-            -2,
-            6,
-            9
-        );
-
-        if(!V5.chest.opened){
-
-            ctx.strokeStyle =
-                "#c59c48";
-
-            ctx.lineWidth = 2;
-
-            ctx.strokeRect(
-                -20,
-                -12,
-                40,
-                25
-            );
-        }
-
-        ctx.restore();
-    }
-
-    /* =====================================================
-       SHRINE
-    ===================================================== */
-
-    function drawShrine(){
-
-        if(!V5.shrine)
-            return;
-
-        const s =
-            worldToScreen(
-                V5.shrine.x,
-                V5.shrine.y
-            );
-
-        ctx.save();
-
-        ctx.translate(
-            s.x,
-            s.y
-        );
-
-        ctx.fillStyle =
-            "#38343f";
-
-        ctx.fillRect(
-            -20,
-            -5,
-            40,
-            25
-        );
-
-        ctx.fillStyle =
-            V5.shrine.used
-                ? "#62556b"
-                : "#a77de0";
-
-        ctx.beginPath();
-
-        ctx.moveTo(
-            0,
-            -30
-        );
-
-        ctx.lineTo(
-            13,
-            -5
-        );
-
-        ctx.lineTo(
-            0,
-            4
-        );
-
-        ctx.lineTo(
-            -13,
-            -5
-        );
-
-        ctx.closePath();
-
-        ctx.fill();
-
-        ctx.shadowColor =
-            "#9d6de0";
-
-        ctx.shadowBlur =
-            V5.shrine.used
-                ? 0
-                : 15;
-
-        ctx.fillStyle =
-            "#c8a8ff";
-
-        ctx.beginPath();
-
-        ctx.arc(
-            0,
-            -12,
-            4,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fill();
-
-        ctx.restore();
-    }
-
-    /* =====================================================
-       INJURED GOBLIN
-    ===================================================== */
-
-    function drawInjuredGoblin(){
-
-        if(!V5.injuredGoblin.active)
-            return;
-
-        const s =
-            worldToScreen(
-                V5.injuredGoblin.x,
-                V5.injuredGoblin.y
-            );
-
-        ctx.save();
-
-        ctx.translate(
-            s.x,
-            s.y
-        );
-
-        ctx.globalAlpha =
-            .85;
-
-        ctx.fillStyle =
-            "#5b6d43";
-
-        ctx.beginPath();
-
-        ctx.arc(
-            0,
-            0,
-            16,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fill();
-
-        ctx.fillStyle =
-            "#d36b58";
-
-        ctx.fillRect(
-            -7,
-            -2,
-            4,
-            4
-        );
-
-        ctx.fillRect(
-            3,
-            -2,
-            4,
-            4
-        );
-
-        ctx.fillStyle =
-            "#a54242";
-
-        ctx.fillRect(
-            -12,
-            11,
-            24,
-            3
-        );
-
-        ctx.restore();
-    }
-
-    /* =====================================================
-       ELDER
-    ===================================================== */
-
-    function drawElderV5(){
-
-        const s =
-            worldToScreen(
-                V5.elder.x,
-                V5.elder.y
-            );
-
-        ctx.save();
-
-        ctx.translate(
-            s.x,
-            s.y
-        );
-
-        ctx.fillStyle =
-            "rgba(0,0,0,.35)";
-
-        ctx.beginPath();
-
-        ctx.ellipse(
-            0,
-            16,
-            18,
-            7,
-            0,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fill();
-
-        ctx.fillStyle =
-            V5.playerClass === "mage"
-                ? "#5e467e"
-                : "#66556f";
-
-        ctx.beginPath();
-
-        ctx.moveTo(
-            -16,
-            15
-        );
-
-        ctx.lineTo(
-            -11,
-            -10
-        );
-
-        ctx.lineTo(
-            0,
-            -22
-        );
-
-        ctx.lineTo(
-            11,
-            -10
-        );
-
-        ctx.lineTo(
-            16,
-            15
-        );
-
-        ctx.closePath();
-
-        ctx.fill();
-
-        ctx.fillStyle =
-            "#a98b72";
-
-        ctx.beginPath();
-
-        ctx.arc(
-            0,
-            -16,
-            9,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fill();
-
-        ctx.fillStyle =
-            "#d1c5a5";
-
-        ctx.beginPath();
-
-        ctx.arc(
-            0,
-            -10,
-            11,
-            0,
-            Math.PI
-        );
-
-        ctx.fill();
-
-        ctx.fillStyle =
-            "#b48ae8";
-
-        ctx.beginPath();
-
-        ctx.arc(
-            0,
-            -25,
-            7,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fill();
-
-        ctx.restore();
-
-        ctx.save();
-
-        ctx.font =
-            "bold 11px sans-serif";
-
-        ctx.textAlign =
-            "center";
-
-        ctx.fillStyle =
-            "#d9c8f5";
-
-        ctx.fillText(
-            "Eldran",
-            s.x,
-            s.y - 40
-        );
-
-        ctx.restore();
-    }
-
-    /* =====================================================
-       V5 UPDATE SYSTEM
-    ===================================================== */
-
-    const oldUpdateParticles =
-        updateParticles;
-
-    updateParticles =
-        function(dt){
-
-            oldUpdateParticles(dt);
-
-            updateAnimalsV5(dt);
-            updateFirefliesV5(dt);
-            updateWeatherV5(dt);
-            updateSurvivalV5(dt);
-
-            if(V5.notificationTimer > 0){
-                V5.notificationTimer -= dt;
-            }
-
-            if(V5.flash > 0){
-                V5.flash -= dt;
-            }
-
-            if(V5.autosaveTimer > 0){
-                V5.autosaveTimer -= dt;
-            }
-
-            if(
-                V5.autosaveTimer <= 0
-            ){
-
-                V5.autosaveTimer =
-                    15;
-
-                saveGameV5();
-            }
-        };
-
-    /* =====================================================
-       PAUSE GAMEPLAY
-    ===================================================== */
-
-    const oldUpdatePlayer =
-        updatePlayer;
-
-    updatePlayer =
-        function(dt){
-
-            if(V5.paused || V5.dialogue)
-                return;
-
-            oldUpdatePlayer(dt);
-        };
-
-    const oldUpdateEnemies =
-        updateEnemies;
-
-    updateEnemies =
-        function(dt){
-
-            if(V5.paused || V5.dialogue)
-                return;
-
-            oldUpdateEnemies(dt);
-        };
-
-    /* =====================================================
-       SAVE SYSTEM
-    ===================================================== */
-
-    function saveGameV5(){
-
-        try{
-
-            const data = {
-
-                player:{
-                    x:player.x,
-                    y:player.y,
-                    hp:player.hp,
-                    maxHp:player.maxHp,
-                    stamina:player.stamina,
-                    maxStamina:player.maxStamina,
-                    speed:player.speed
-                },
-
-                resources:{
-                    wood:resources.wood,
-                    stone:resources.stone,
-                    mushroom:resources.mushroom,
-                    strange:resources.strange
-                },
-
-                craftedItems:{
-                    campfire:craftedItems.campfire,
-                    axe:craftedItems.axe,
-                    sword:craftedItems.sword,
-                    potion:craftedItems.potion
-                },
-
-                questStage,
-
-                V5:{
-                    gold:V5.gold,
-                    xp:V5.xp,
-                    level:V5.level,
-                    xpNext:V5.xpNext,
-                    hunger:V5.hunger,
-                    thirst:V5.thirst,
-                    reputation:V5.reputation,
-                    classChosen:V5.classChosen,
-                    playerClass:V5.playerClass,
-                    chestOpened:V5.chest.opened,
-                    shrineUsed:V5.shrine.used,
-                    injuredGoblinActive:V5.injuredGoblin.active,
-                    injuredGoblinHelped:V5.injuredGoblin.helped,
-                    goblinChoice:V5.goblinChoice,
-                    stones:V5.ancientStones.map(
-                        s => s.discovered
-                    ),
-                    crystals:V5.crystals.map(
-                        c => c.collected
-                    )
-                }
-            };
-
-            localStorage.setItem(
-                "darkwood_save_v5",
-                JSON.stringify(data)
-            );
-
-        }catch(error){
-
-            console.warn(
-                "Não foi possível salvar o jogo.",
-                error
-            );
-        }
-    }
-
-    function loadGameV5(){
-
-        try{
-
-            const raw =
-                localStorage.getItem(
-                    "darkwood_save_v5"
-                );
-
-            if(!raw)
-                return false;
-
-            const data =
-                JSON.parse(raw);
-
-            if(data.player){
-
-                Object.assign(
-                    player,
-                    data.player
-                );
-            }
-
-            if(data.resources){
-
-                Object.assign(
-                    resources,
-                    data.resources
-                );
-            }
-
-            if(data.craftedItems){
-
-                Object.assign(
-                    craftedItems,
-                    data.craftedItems
-                );
-            }
-
-            if(
-                typeof data.questStage ===
-                "number"
-            ){
-                questStage =
-                    data.questStage;
-            }
-
-            if(data.V5){
-
-                Object.assign(
-                    V5,
-                    data.V5
-                );
-
-                V5.dialogue = null;
-
-                if(V5.chest){
-                    V5.chest = {
-                        x:2320,
-                        y:780,
-                        opened:
-                            !!data.V5.chestOpened
-                    };
-                }
-
-                if(V5.shrine){
-                    V5.shrine = {
-                        x:2700,
-                        y:650,
-                        active:true,
-                        used:
-                            !!data.V5.shrineUsed
-                    };
-                }
-
-                if(
-                    typeof data.V5
-                        .injuredGoblinActive
-                    === "boolean"
-                ){
-
-                    V5.injuredGoblin.active =
-                        data.V5.injuredGoblinActive;
-                }
-
-                V5.injuredGoblin.helped =
-                    !!data.V5.injuredGoblinHelped;
-
-                V5.goblinChoice =
-                    data.V5.goblinChoice;
-
-                if(
-                    Array.isArray(
-                        data.V5.stones
-                    )
-                ){
-
-                    data.V5.stones.forEach(
-                        (value,index) => {
-
-                            if(
-                                V5.ancientStones[index]
-                            ){
-
-                                V5.ancientStones[index]
-                                    .discovered =
-                                    !!value;
-                            }
-                        }
-                    );
-                }
-
-                if(
-                    Array.isArray(
-                        data.V5.crystals
-                    )
-                ){
-
-                    data.V5.crystals.forEach(
-                        (value,index) => {
-
-                            if(
-                                V5.crystals[index]
-                            ){
-
-                                V5.crystals[index]
-                                    .collected =
-                                    !!value;
-                            }
-                        }
-                    );
-                }
-            }
-
-            updateHUD();
-            updateInventoryUI();
-
-            v5Show(
-                "Jogo carregado."
-            );
-
-            return true;
-
-        }catch(error){
-
-            console.warn(
-                "Erro ao carregar save.",
-                error
-            );
-
-            return false;
-        }
-    }
-
-    window.saveDarkwood =
-        saveGameV5;
-
-    window.loadDarkwood =
-        loadGameV5;
-
-    /* =====================================================
-       RENDER ADDITIONS
-    ===================================================== */
-
-    const oldRender =
-        render;
-
-    render =
-        function(){
-
-            oldRender();
-
-            ctx.save();
-
-            drawAncientStones();
-            drawChest();
-            drawCrystalObjects();
-            drawShrine();
-            drawInjuredGoblin();
-            drawAnimals();
-            drawFireflies();
-            drawElderV5();
-
-            ctx.restore();
-
-            drawWeather();
-            drawV5HUD();
-            drawMinimap();
-
-            if(V5.dialogue){
-                drawDialogueV5();
-            }
-
-            if(V5.paused){
-
-                ctx.save();
-
-                ctx.fillStyle =
-                    "rgba(0,0,0,.68)";
-
-                ctx.fillRect(
-                    0,
-                    0,
-                    W,
-                    H
-                );
-
-                ctx.textAlign =
-                    "center";
-
-                ctx.fillStyle =
-                    "#eee";
-
-                ctx.font =
-                    "bold 34px sans-serif";
-
-                ctx.fillText(
-                    "PAUSADO",
-                    W/2,
-                    H/2 - 10
-                );
-
-                ctx.font =
-                    "14px sans-serif";
-
-                ctx.fillStyle =
-                    "#bbb";
-
-                ctx.fillText(
-                    "ESC para continuar",
-                    W/2,
-                    H/2 + 22
-                );
-
-                ctx.restore();
-            }
-
-            if(V5.flash > 0){
-
-                ctx.save();
-
-                ctx.fillStyle =
-                    `rgba(180,120,255,${Math.min(
-                        .28,
-                        V5.flash * .28
-                    )})`;
-
-                ctx.fillRect(
-                    0,
-                    0,
-                    W,
-                    H
-                );
-
-                ctx.restore();
-            }
-        };
-
-    /* =====================================================
-       HUD
-    ===================================================== */
-
-    function drawV5HUD(){
-
-        ctx.save();
-
-        ctx.font =
-            "12px sans-serif";
-
-        ctx.textAlign =
-            "left";
-
-        const x = 15;
-        const y = 145;
-
-        /* LEVEL */
-
-        ctx.fillStyle =
-            "rgba(8,10,15,.78)";
-
-        ctx.fillRect(
-            x,
-            y,
-            190,
-            82
-        );
-
-        ctx.strokeStyle =
-            "rgba(255,255,255,.08)";
-
-        ctx.strokeRect(
-            x,
-            y,
-            190,
-            82
-        );
-
-        ctx.fillStyle =
-            "#d8c9e9";
-
-        ctx.font =
-            "bold 13px sans-serif";
-
-        ctx.fillText(
-            `NÍVEL ${V5.level}`,
-            x + 10,
-            y + 18
-        );
-
-        ctx.font =
-            "11px sans-serif";
-
-        ctx.fillStyle =
-            "#b9b2c4";
-
-        ctx.fillText(
-            `${V5.xp} / ${V5.xpNext} XP`,
-            x + 10,
-            y + 34
-        );
-
-        ctx.fillStyle =
-            "rgba(255,255,255,.08)";
-
-        ctx.fillRect(
-            x + 10,
-            y + 42,
-            170,
-            6
-        );
-
-        ctx.fillStyle =
-            "#8c67bd";
-
-        ctx.fillRect(
-            x + 10,
-            y + 42,
-            170 *
-            Math.min(
-                1,
-                V5.xp / V5.xpNext
-            ),
-            6
-        );
-
-        ctx.fillStyle =
-            "#c8a76c";
-
-        ctx.fillText(
-            `Ouro: ${V5.gold}`,
-            x + 10,
-            y + 67
-        );
-
-        /* SURVIVAL */
-
-        ctx.fillStyle =
-            "#aaa";
-
-        ctx.fillText(
-            `Fome: ${Math.round(V5.hunger)}%`,
-            x + 90,
-            y + 67
-        );
-
-        ctx.fillText(
-            `Sede: ${Math.round(V5.thirst)}%`,
-            x + 10,
-            y + 80
-        );
-
-        /* CLASS */
-
-        if(V5.classChosen){
-
-            ctx.fillStyle =
-                "#c6b2e7";
-
-            const className =
-                V5.playerClass === "warrior"
-                    ? "GUERREIRO"
-                    : V5.playerClass === "mage"
-                        ? "MAGO"
-                        : "DUENDE";
-
-            ctx.fillText(
-                className,
-                x + 105,
-                y + 80
-            );
-        }
-
-        /* WEATHER */
-
-        ctx.textAlign =
-            "right";
-
-        const weatherName =
-            V5.weather === "clear"
-                ? "Céu limpo"
-                : V5.weather === "fog"
-                    ? "Névoa"
-                    : V5.weather === "rain"
-                        ? "Chuva"
-                        : "Tempestade";
-
-        ctx.fillStyle =
-            "#bdb6c7";
-
-        ctx.fillText(
-            weatherName,
-            W - 15,
-            28
-        );
-
-        ctx.restore();
-    }
-
-    /* =====================================================
-       DIALOGUE DRAW
-    ===================================================== */
-
-    function drawDialogueV5(){
-
-        const d =
-            V5.dialogue;
-
-        if(!d)
-            return;
-
-        d.timer +=
-            1 / 60;
-
-        if(
-            !d.finished &&
-            d.timer > .025
-        ){
-
-            d.timer = 0;
-
-            d.chars =
-                Math.min(
-                    d.text.length,
-                    d.chars + 1
-                );
-
-            if(
-                d.chars >=
-                d.text.length
-            ){
-                d.finished = true;
-            }
-        }
-
-        ctx.save();
-
-        const boxW =
-            Math.min(
-                W - 30,
-                700
-            );
-
-        const boxH =
-            d.choices.length
-                ? 170
-                : 130;
-
-        const bx =
-            (W - boxW) / 2;
-
-        const by =
-            H - boxH - 25;
-
-        ctx.fillStyle =
-            "rgba(8,8,13,.94)";
-
-        ctx.fillRect(
-            bx,
-            by,
-            boxW,
-            boxH
-        );
-
-        ctx.strokeStyle =
-            "rgba(169,132,218,.55)";
-
-        ctx.lineWidth = 2;
-
-        ctx.strokeRect(
-            bx,
-            by,
-            boxW,
-            boxH
-        );
-
-        ctx.textAlign =
-            "left";
-
-        ctx.fillStyle =
-            "#d6bdf1";
-
-        ctx.font =
-            "bold 15px sans-serif";
-
-        ctx.fillText(
-            d.speaker,
-            bx + 18,
-            by + 25
-        );
-
-        ctx.fillStyle =
-            "#ddd";
-
-        ctx.font =
-            "14px sans-serif";
-
-        const visible =
-            d.text.slice(
-                0,
-                d.chars
-            );
-
-        drawWrappedTextV5(
-            visible,
-            bx + 18,
-            by + 50,
-            boxW - 36,
-            20
-        );
-
-        if(
-            d.finished &&
-            d.choices.length
-        ){
-
-            ctx.font =
-                "13px sans-serif";
-
-            for(
-                let i=0;
-                i<d.choices.length;
-                i++
-            ){
-
-                const selected =
-                    i === d.selected;
-
-                ctx.fillStyle =
-                    selected
-                        ? "#a985d0"
-                        : "#888";
-
-                ctx.fillText(
-                    `${selected ? "▶" : "•"} ${d.choices[i].text}`,
-                    bx + 20,
-                    by + 112 + i * 22
-                );
-            }
-
-        }else if(d.finished){
-
-            ctx.fillStyle =
-                "#888";
-
-            ctx.font =
-                "11px sans-serif";
-
-            ctx.fillText(
-                "Toque ou pressione ENTER para continuar",
-                bx + 18,
-                by + boxH - 15
-            );
-        }
-
-        ctx.restore();
-    }
-
-    function drawWrappedTextV5(
-        text,
-        x,
-        y,
-        maxWidth,
-        lineHeight
-    ){
-
-        const words =
-            text.split(" ");
-
-        let line = "";
-        let yy = y;
-
-        for(
-            const word of words
-        ){
-
-            const test =
-                line
-                    ? `${line} ${word}`
-                    : word;
-
-            if(
-                ctx.measureText(test).width >
-                maxWidth
-            ){
-
-                ctx.fillText(
-                    line,
-                    x,
-                    yy
-                );
-
-                line = word;
-                yy += lineHeight;
-
-            }else{
-
-                line = test;
-            }
-        }
-
-        if(line){
-            ctx.fillText(
-                line,
-                x,
-                yy
-            );
-        }
-    }
-
-    /* =====================================================
-       MINIMAP
-    ===================================================== */
-
-    let mapOpenV5 = false;
-
-    function toggleMapV5(){
-
-        mapOpenV5 =
-            !mapOpenV5;
-    }
-
-    function drawMinimap(){
-
-        if(mapOpenV5){
-
-            drawFullMapV5();
-
-            return;
-        }
-
-        const size = 125;
-        const pad = 15;
-
-        const x =
-            W - size - pad;
-
-        const y =
-            45;
-
-        ctx.save();
-
-        ctx.fillStyle =
-            "rgba(5,8,9,.78)";
-
-        ctx.fillRect(
-            x,
-            y,
-            size,
-            size
-        );
-
-        ctx.strokeStyle =
-            "rgba(255,255,255,.16)";
-
-        ctx.strokeRect(
-            x,
-            y,
-            size,
-            size
-        );
-
-        const sx =
-            size / WORLD.width;
-
-        const sy =
-            size / WORLD.height;
-
-        /* árvores */
-
-        ctx.fillStyle =
-            "rgba(63,78,51,.75)";
-
-        for(
-            let i=0;
-            i<trees.length;
-            i+=3
-        ){
-
-            const t =
-                trees[i];
-
-            ctx.fillRect(
-                x + t.x * sx,
-                y + t.y * sy,
-                2,
-                2
-            );
-        }
-
-        /* abrigo */
-
-        ctx.fillStyle =
-            "#c6a86a";
-
-        ctx.fillRect(
-            x + shelter.x * sx - 2,
-            y + shelter.y * sy - 2,
-            5,
-            5
-        );
-
-        /* jogador */
-
-        ctx.fillStyle =
-            "#e6d4ff";
-
-        ctx.beginPath();
-
-        ctx.arc(
-            x + player.x * sx,
-            y + player.y * sy,
-            3,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fill();
-
-        /* inimigos */
-
-        ctx.fillStyle =
-            "#a64c4c";
-
-        for(
-            const enemy of enemies
-        ){
-
-            if(enemy.hp <= 0)
-                continue;
-
-            ctx.fillRect(
-                x + enemy.x * sx - 1,
-                y + enemy.y * sy - 1,
-                2,
-                2
-            );
-        }
-
-        ctx.restore();
-    }
-
-    function drawFullMapV5(){
-
-        ctx.save();
-
-        ctx.fillStyle =
-            "rgba(3,4,7,.95)";
-
-        ctx.fillRect(
-            0,
-            0,
-            W,
-            H
-        );
-
-        const mapW =
-            Math.min(
-                W - 40,
-                800
-            );
-
-        const mapH =
-            Math.min(
-                H - 90,
-                560
-            );
-
-        const x =
-            (W - mapW) / 2;
-
-        const y =
-            (H - mapH) / 2;
-
-        ctx.fillStyle =
-            "#20291f";
-
-        ctx.fillRect(
-            x,
-            y,
-            mapW,
-            mapH
-        );
-
-        ctx.strokeStyle =
-            "#69735d";
-
-        ctx.strokeRect(
-            x,
-            y,
-            mapW,
-            mapH
-        );
-
-        const sx =
-            mapW / WORLD.width;
-
-        const sy =
-            mapH / WORLD.height;
-
-        ctx.fillStyle =
-            "#4e6741";
-
-        for(
-            let i=0;
-            i<trees.length;
-            i+=2
-        ){
-
-            const t =
-                trees[i];
-
-            ctx.fillRect(
-                x + t.x * sx,
-                y + t.y * sy,
-                2,
-                2
-            );
-        }
-
-        ctx.fillStyle =
-            "#c5a76b";
-
-        ctx.fillRect(
-            x + shelter.x * sx - 4,
-            y + shelter.y * sy - 4,
-            8,
-            8
-        );
-
-        ctx.fillStyle =
-            "#e7d6ff";
-
-        ctx.beginPath();
-
-        ctx.arc(
-            x + player.x * sx,
-            y + player.y * sy,
-            5,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fill();
-
-        ctx.fillStyle =
-            "#c75a55";
-
-        for(
-            const enemy of enemies
-        ){
-
-            if(enemy.hp <= 0)
-                continue;
-
-            ctx.fillRect(
-                x + enemy.x * sx - 2,
-                y + enemy.y * sy - 2,
-                4,
-                4
-            );
-        }
-
-        ctx.fillStyle =
-            "#b28ee5";
-
-        for(
-            const stone of V5.ancientStones
-        ){
-
-            if(!stone.discovered)
-                continue;
-
-            ctx.beginPath();
-
-            ctx.arc(
-                x + stone.x * sx,
-                y + stone.y * sy,
-                4,
-                0,
-                Math.PI * 2
-            );
-
-            ctx.fill();
-        }
-
-        ctx.fillStyle =
-            "#eee";
-
-        ctx.font =
-            "bold 18px sans-serif";
-
-        ctx.textAlign =
-            "center";
-
-        ctx.fillText(
-            "MAPA DA FLORESTA",
-            W/2,
-            y - 15
-        );
-
-        ctx.font =
-            "12px sans-serif";
-
-        ctx.fillStyle =
-            "#aaa";
-
-        ctx.fillText(
-            "M para fechar",
-            W/2,
-            y + mapH + 25
-        );
-
-        ctx.restore();
-    }
-
-    /* =====================================================
-       QUEST EXTENSION
-    ===================================================== */
-
-    const oldUpdateQuest =
-        updateQuest;
-
-    updateQuest =
-        function(){
-
-            oldUpdateQuest();
-
-            if(
-                questStage === 3
-            ){
-
-                if(
-                    V5.ancientStones.every(
-                        s => s.discovered
-                    )
-                ){
-
-                    questStage = 5;
-
-                    v5AddXP(80);
-
-                    v5Show(
-                        "As três pedras despertaram. Algo respondeu do outro lado da floresta."
-                    );
-                }
-            }
-
-            if(
-                questStage === 5 &&
-                !V5.classChosen
-            ){
-
-                questStage = 3;
-            }
-
-            if(
-                questStage === 5 &&
-                V5.classChosen
-            ){
-
-                if(
-                    v5Dist(
-                        player.x,
-                        player.y,
-                        V5.chest.x,
-                        V5.chest.y
-                    ) < 180
-                ){
-
-                    questStage = 6;
-
-                    v5Show(
-                        "Você encontrou uma antiga câmara escondida."
-                    );
-                }
-            }
-
-            if(
-                questStage === 7 &&
-                !V5.injuredGoblin.active
-            ){
-
-                questStage = 8;
-            }
-        };
-
-    /* =====================================================
-       QUEST TEXT EXTENSION
-    ===================================================== */
-
-    const oldUpdateHUD =
-        updateHUD;
-
-    updateHUD =
-        function(){
-
-            oldUpdateHUD();
-
-            const quest =
-                document.getElementById(
-                    "questText"
-                );
-
-            if(!quest)
-                return;
-
-            if(
-                questStage === 3
-            ){
-
-                quest.textContent =
-                    "Encontre as três pedras antigas.";
-            }
-
-            if(
-                questStage === 4
-            ){
-
-                quest.textContent =
-                    "Continue investigando as pedras antigas.";
-            }
-
-            if(
-                questStage === 5
-            ){
-
-                quest.textContent =
-                    "A floresta despertou. Descubra o que mudou.";
-            }
-
-            if(
-                questStage === 6
-            ){
-
-                quest.textContent =
-                    "Explore a antiga câmara e encontre seus segredos.";
-            }
-
-            if(
-                questStage === 7
-            ){
-
-                quest.textContent =
-                    "Decida o destino do goblin ferido.";
-            }
-
-            if(
-                questStage >= 8
-            ){
-
-                quest.textContent =
-                    "Siga para o norte e descubra o caminho para o reino.";
-            }
-        };
-
-    /* =====================================================
-       MOBILE DIALOGUE
-    ===================================================== */
-
-    document.addEventListener(
-        "pointerdown",
-        function(e){
-
-            if(!V5.dialogue)
-                return;
-
-            const target =
-                e.target;
-
-            if(
-                target &&
-                (
-                    target.id ===
-                    "attackButton" ||
-                    target.id ===
-                    "dodgeButton" ||
-                    target.id ===
-                    "interactButton"
-                )
-            ){
-                return;
-            }
-
-            dialogueAdvance();
-        }
-    );
-
-    /* =====================================================
-       EXTRA MOBILE BUTTONS
-    ===================================================== */
-
-    const interactButton =
-        document.getElementById(
-            "interactButton"
-        );
-
-    if(interactButton){
-
-        interactButton.addEventListener(
-            "pointerdown",
-            function(e){
-
-                if(V5.dialogue){
-
-                    e.preventDefault();
-
-                    dialogueAdvance();
-
-                    return;
-                }
-
-                talkToNearestV5();
-            },
-            true
-        );
-    }
-
-    /* =====================================================
-       STARTUP
-    ===================================================== */
-
-    changeWeatherV5();
-
-    const loaded =
-        loadGameV5();
-
-    if(!loaded){
-
-        V5.hunger = 100;
-        V5.thirst = 100;
-        V5.gold = 0;
-        V5.xp = 0;
-        V5.level = 1;
-        V5.xpNext = 100;
-    }
-
-    V5.initialized = true;
-
-    setTimeout(
-        function(){
-
-            v5Show(
-                "Darkwood V5 iniciado. Explore, sobreviva e escolha seu caminho."
-            );
-
-        },
-        1400
-    );
-
-})();
+```
