@@ -1898,11 +1898,10 @@ function updateCamera(deltaTime) {
     );
 
     if (camera.shake > 0) {
-
-        camera.shake = Math.max(
-            0,
-            camera.shake - 25 * deltaTime
-        );
+        camera.shake = Math.max(0, camera.shake - 25 * deltaTime);
+        const shakeAmount = camera.shake * 0.45;
+        camera.x += random(-shakeAmount, shakeAmount);
+        camera.y += random(-shakeAmount, shakeAmount);
     }
 }
 
@@ -2727,10 +2726,29 @@ function updateEnvironment(deltaTime) {
    WORLD ENVIRONMENT RENDER
 ========================================================= */
 
-function drawEnvironmentEffects() {
+function drawAtmosphericLighting() {
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    const darkness = 1 - getDaylightIntensity();
+    const radius = Math.max(width, height) * 0.82;
 
+    ctx.save();
+    const gradient = ctx.createRadialGradient(
+        width * 0.5, height * 0.48, Math.min(width, height) * 0.12,
+        width * 0.5, height * 0.48, radius
+    );
+    gradient.addColorStop(0, "rgba(0,0,0,0)");
+    gradient.addColorStop(0.68, "rgba(4,8,15," + (0.08 + darkness * 0.12) + ")");
+    gradient.addColorStop(1, "rgba(2,5,12," + (0.2 + darkness * 0.28) + ")");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+    ctx.restore();
+}
+
+function drawEnvironmentEffects() {
     drawAmbientOverlay();
     drawWeather();
+    drawAtmosphericLighting();
 }
 
 /* =========================================================
@@ -3360,8 +3378,9 @@ function drawEnemies() {
 
         ctx.fill();
 
-        const enemyColor =
-            enemy.type === "goblin"
+        const enemyColor = enemy.hitTimer > 0
+            ? "#f1d5d0"
+            : enemy.type === "goblin"
                 ? "#79984b"
                 : "#5c687d";
 
@@ -3410,6 +3429,14 @@ function drawEnemies() {
             3,
             3
         );
+
+        if (enemy.state === "attack") {
+            ctx.strokeStyle = "rgba(226,91,78,0.8)";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(x, y, 22 + Math.sin(performance.now() * 0.02) * 2, 0, Math.PI * 2);
+            ctx.stroke();
+        }
 
         /* Health bar */
 
@@ -3476,12 +3503,18 @@ function drawPlayer() {
 
     ctx.fill();
 
-    /* Body */
+    /* Body — cor acompanha a classe escolhida. */
 
-    ctx.fillStyle =
-        player.hurtTimer > 0
-            ? "#d65b5b"
-            : "#536e9c";
+    const classColors = {
+        warrior: "#9b514c",
+        mage: "#7656a8",
+        rogue: "#557c55"
+    };
+    ctx.shadowColor = player.classId ? classColors[player.classId] : "transparent";
+    ctx.shadowBlur = player.classId ? 10 : 0;
+    ctx.fillStyle = player.hurtTimer > 0
+        ? "#d65b5b"
+        : classColors[player.classId] || "#536e9c";
 
     ctx.beginPath();
 
@@ -3558,12 +3591,13 @@ function drawPlayer() {
 
         ctx.beginPath();
 
+        const facingAngle = Math.atan2(player.dirY, player.dirX);
         ctx.arc(
-            x + player.dirX * 18,
-            y + player.dirY * 18,
-            25,
-            -Math.PI * 0.75,
-            Math.PI * 0.75
+            x,
+            y,
+            34,
+            facingAngle - 0.85,
+            facingAngle + 0.85
         );
 
         ctx.stroke();
