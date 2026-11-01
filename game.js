@@ -18,8 +18,7 @@ function resizeCanvas() {
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 
-window.addEventListener("resize", resizeCanvas);
-resizeCanvas();
+// Canvas sizing is handled by resizeGameCanvas() during control initialization.
 
 /* =========================================================
    WORLD
@@ -237,39 +236,7 @@ function generateWorld() {
         });
     }
 
-    for (let i = 0; i < 9; i++) {
 
-        let x;
-        let y;
-
-        do {
-            x = random(300, world.width - 300);
-            y = random(300, world.height - 300);
-        } while (
-            insideShelter(x, y, 300) ||
-            Math.hypot(x - player.x, y - player.y) < 500
-        );
-
-        enemies.push({
-            x,
-            y,
-            radius: 18,
-
-            hp: 60,
-            maxHp: 60,
-
-            speed: random(45, 65),
-
-            attackCooldown: random(0, 2),
-
-            wanderTimer: random(1, 4),
-
-            dirX: random(-1, 1),
-            dirY: random(-1, 1),
-
-            hitTimer: 0
-        });
-    }
 }
 
 generateWorld();
@@ -304,114 +271,9 @@ function isBlocked(x, y, radius) {
 }
 
 /* =========================================================
-   MOVEMENT
+   MOVEMENT INPUT
+   Unified input is initialized in initializeControls().
 ========================================================= */
-
-const keys = {};
-
-window.addEventListener("keydown", e => {
-
-    keys[e.key.toLowerCase()] = true;
-
-    if (e.key === "Escape") {
-        const map = document.getElementById("mapPanel");
-        const dialogue = document.getElementById("dialoguePanel");
-        if (map && !map.hidden) map.hidden = true;
-        else if (dialogue && !dialogue.hidden) dialogue.hidden = true;
-        else togglePause();
-    }
-
-    if (
-        e.key.toLowerCase() === "i" ||
-        e.key.toLowerCase() === "b"
-    ) {
-        toggleInventory();
-    }
-
-    if (e.key === " " || e.key.toLowerCase() === "j") {
-        attack();
-    }
-
-    if (
-        e.key === "Shift" ||
-        e.key.toLowerCase() === "k"
-    ) {
-        dodge();
-    }
-
-    if (e.key.toLowerCase() === "e") {
-        interact();
-    }
-});
-
-window.addEventListener("keyup", e => {
-    keys[e.key.toLowerCase()] = false;
-});
-
-let joystick = {
-    active: false,
-    x: 0,
-    y: 0
-};
-
-const joystickElement = document.getElementById("joystick");
-const joystickKnob = document.getElementById("joystickKnob");
-
-function updateJoystick(clientX, clientY) {
-
-    const rect = joystickElement.getBoundingClientRect();
-
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-
-    let dx = clientX - centerX;
-    let dy = clientY - centerY;
-
-    const max = rect.width / 2 - 28;
-
-    const len = Math.hypot(dx, dy);
-
-    if (len > max) {
-
-        dx = dx / len * max;
-        dy = dy / len * max;
-    }
-
-    joystick.x = dx / max;
-    joystick.y = dy / max;
-
-    joystickKnob.style.transform =
-        `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
-}
-
-joystickElement.addEventListener("pointerdown", e => {
-
-    joystick.active = true;
-
-    joystickElement.setPointerCapture(e.pointerId);
-
-    updateJoystick(e.clientX, e.clientY);
-});
-
-joystickElement.addEventListener("pointermove", e => {
-
-    if (joystick.active) {
-        updateJoystick(e.clientX, e.clientY);
-    }
-});
-
-joystickElement.addEventListener("pointerup", resetJoystick);
-joystickElement.addEventListener("pointercancel", resetJoystick);
-
-function resetJoystick() {
-
-    joystick.active = false;
-    joystick.x = 0;
-    joystick.y = 0;
-
-    joystickKnob.style.transform =
-        "translate(-50%, -50%)";
-}
 /* =========================================================
    COMBAT SYSTEM
 ========================================================= */
@@ -1050,7 +912,7 @@ function createCraftParticles() {
 
 function attack() {
 
-    if (inventoryOpen) return;
+    if (paused || gameOver || inventoryOpen) return;
 
     if (player.attackCooldown > 0) return;
 
@@ -1085,31 +947,9 @@ function attack() {
 
         if (dot < .15) continue;
 
-        enemy.hp -= 25;
-
-        enemy.hitTimer = .2;
-
+        damageEnemy(enemy, 25);
         enemy.x += player.dirX * 25;
         enemy.y += player.dirY * 25;
-
-        createHitParticles(
-            enemy.x,
-            enemy.y
-        );
-
-        if (enemy.hp <= 0) {
-
-            resources.wood += 1;
-
-            showMessage(
-                "Goblin derrotado. +1 madeira"
-            );
-
-            createDeathParticles(
-                enemy.x,
-                enemy.y
-            );
-        }
     }
 }
 
@@ -1119,7 +959,7 @@ function attack() {
 
 function dodge() {
 
-    if (inventoryOpen) return;
+    if (paused || gameOver || inventoryOpen) return;
 
     if (player.dodgeCooldown > 0) return;
 
@@ -1372,51 +1212,35 @@ function createDodgeParticles() {
 ========================================================= */
 
 function damagePlayer(amount, enemy) {
-
-    if (player.invulnerable > 0) return;
-
-    player.hp -= amount;
-
-    player.hurtTimer = .25;
-
-    camera.shake = 10;
-
-    document.getElementById(
-        "damageFlash"
-    ).style.opacity = "1";
-
-    setTimeout(() => {
-
-        document.getElementById(
-            "damageFlash"
-        ).style.opacity = "0";
-
-    }, 100);
-
-    if (enemy) {
-
-        const dx = player.x - enemy.x;
-        const dy = player.y - enemy.y;
-
-        const len = Math.hypot(dx, dy) || 1;
-
-        player.x += dx / len * 30;
-        player.y += dy / len * 30;
+    if (paused || gameOver || player.invulnerable > 0 || player.hp <= 0) return;
+    player.hp = Math.max(0, player.hp - amount);
+    player.invulnerable = 0.75;
+    player.hurtTimer = 0.25;
+    camera.shake = Math.max(camera.shake, 7);
+    const flash = getElement("damageFlash");
+    if (flash) {
+        flash.classList.add("active");
+        window.setTimeout(() => flash.classList.remove("active"), 120);
     }
-
+    if (enemy) {
+        const dx = player.x - enemy.x, dy = player.y - enemy.y;
+        const length = Math.hypot(dx, dy) || 1;
+        player.x += dx / length * 30;
+        player.y += dy / length * 30;
+    }
     if (player.hp <= 0) {
-
         player.hp = player.maxHp;
         player.stamina = player.maxStamina;
-
         player.x = shelter.x;
         player.y = shelter.y;
-
-        showMessage(
-            "Você caiu. A floresta trouxe você de volta ao abrigo."
-        );
+        player.invulnerable = 1.5;
+        camera.x = Math.max(0, player.x - canvas.clientWidth / 2);
+        camera.y = Math.max(0, player.y - canvas.clientHeight / 2);
+        showMessage("Você caiu. A floresta trouxe você de volta ao abrigo.");
     }
+    updateHUD();
 }
+
 /* =========================================================
    PARTE 3/8 — HUD, MISSÕES, MENSAGENS E ESTADO DO JOGO
 ========================================================= */
@@ -1465,37 +1289,19 @@ function setWidth(id, value) {
 ========================================================= */
 
 function updateHUD() {
-
-    const hpPercent =
-        (player.hp / player.maxHp) * 100;
-
-    const staminaPercent =
-        (player.stamina / player.maxStamina) * 100;
-
-    setText("hpValue", Math.ceil(player.hp));
-    setText("healthValue", Math.ceil(player.hp));
-    setText("staminaValue", Math.ceil(player.stamina));
-
-    setWidth("hpFill", hpPercent);
-    setWidth("healthFill", hpPercent);
-    setWidth("staminaFill", staminaPercent);
-
-    setText("woodCount", resources.wood);
-    setText("stoneCount", resources.stone);
-    setText("mushroomCount", resources.mushroom);
-    setText("strangeCount", resources.strange);
-
-    setText("levelValue", playerLevel);
-    setText("playerLevel", playerLevel);
-
-    setText("xpValue", experience);
-    setText("xpRequired", experienceRequired);
-
-    setWidth(
-        "xpFill",
-        (experience / experienceRequired) * 100
-    );
-
+    const hpPercent = (player.hp / player.maxHp) * 100;
+    const staminaPercent = (player.stamina / player.maxStamina) * 100;
+    const xpPercent = (experience / experienceRequired) * 100;
+    setText("hpText", Math.ceil(player.hp) + " / " + player.maxHp);
+    setText("staminaText", Math.ceil(player.stamina) + " / " + player.maxStamina);
+    setWidth("hpBar", hpPercent);
+    setWidth("staminaBar", staminaPercent);
+    setText("v5Level", playerLevel);
+    setText("v5Xp", experience);
+    setWidth("v5XpBar", xpPercent);
+    setText("v5Class", player.className || "Sem classe");
+    setText("resourceText", "Madeira " + resources.wood + " · Pedra " + resources.stone +
+        " · Cogumelos " + resources.mushroom + " · Essência " + resources.strange);
     updateInventoryUI();
 }
 
@@ -1571,53 +1377,22 @@ function createLevelUpParticles() {
    MESSAGE SYSTEM
 ========================================================= */
 
-function showMessage(text) {
-
+function showMessage(text, duration = 2.8) {
     lastMessage = text;
     lastMessageTime = performance.now();
-
     messageText = text;
-    messageTimer = 2.8;
-
-    const messageElement = getElement("message");
-
-    if (messageElement) {
-
-        messageElement.textContent = text;
-        messageElement.classList.add("visible");
-        messageElement.style.opacity = "1";
-    }
-
-    const notification = getElement("notification");
-
+    messageTimer = duration;
+    const notification = getElement("v5Notification");
     if (notification) {
-
         notification.textContent = text;
         notification.classList.add("visible");
     }
 }
-
 function updateMessages(deltaTime) {
-
-    if (messageTimer > 0) {
-
-        messageTimer -= deltaTime;
-
-    } else {
-
-        const messageElement = getElement("message");
-
-        if (messageElement) {
-
-            messageElement.style.opacity = "0";
-            messageElement.classList.remove("visible");
-        }
-
-        const notification = getElement("notification");
-
-        if (notification) {
-            notification.classList.remove("visible");
-        }
+    if (messageTimer > 0) messageTimer = Math.max(0, messageTimer - deltaTime);
+    if (messageTimer <= 0) {
+        const notification = getElement("v5Notification");
+        if (notification) notification.classList.remove("visible");
     }
 }
 
@@ -1658,20 +1433,9 @@ const questDescriptions = {
 };
 
 function updateQuest() {
-
     const quest = questDescriptions[questStage];
-
     if (!quest) return;
-
-    setText("questTitle", quest.title);
-    setText("questDescription", quest.description);
-    setText("currentQuest", quest.title);
-
-    const questPanel = getElement("questPanel");
-
-    if (questPanel) {
-        questPanel.classList.add("active");
-    }
+    setText("questText", quest.title + " — " + quest.description);
 }
 
 function advanceQuest(nextStage) {
@@ -1854,18 +1618,9 @@ function formatWorldTime(value) {
 }
 
 function updateWorldTimeDisplay() {
-
-    setText(
-        "worldTime",
-        formatWorldTime(worldTime)
-    );
-
-    const period =
-        worldTime >= 6 && worldTime < 18
-            ? "Dia"
-            : "Noite";
-
-    setText("dayPeriod", period);
+    setText("dayText", "Dia " + worldDay + " · " + getTimeDescription());
+    const labels = { clear: "Céu limpo", mist: "Névoa", rain: "Chuva" };
+    setText("weatherText", labels[weather] || "Céu limpo");
 }
 
 /* =========================================================
@@ -1946,6 +1701,20 @@ window.addEventListener("keydown", event => {
 
     if (event.repeat) return;
 
+    if (event.key.toLowerCase() === "escape") {
+        const mapPanel = getElement("mapPanel");
+        const dialoguePanel = getElement("dialoguePanel");
+        if (mapPanel && !mapPanel.hidden) {
+            mapPanel.hidden = true;
+            mapPanel.classList.remove("open");
+            return;
+        }
+        if (dialoguePanel && !dialoguePanel.hidden) {
+            dialoguePanel.hidden = true;
+            return;
+        }
+    }
+
     switch (event.key.toLowerCase()) {
 
         case "e":
@@ -1953,6 +1722,7 @@ window.addEventListener("keydown", event => {
             break;
 
         case "i":
+        case "b":
             toggleInventory();
             break;
 
@@ -1961,10 +1731,12 @@ window.addEventListener("keydown", event => {
             break;
 
         case " ":
+        case "j":
             attack();
             break;
 
         case "shift":
+        case "k":
             dodge();
             break;
     }
@@ -2158,6 +1930,9 @@ function initializeActionButtons() {
     const dodgeButton = getElement("dodgeButton");
     const interactButton = getElement("interactButton");
     const runButton = getElement("runButton");
+    const mapButton = getElement("mapButton");
+    const closeMapButton = getElement("closeMap");
+    const mapPanel = getElement("mapPanel");
 
     if (attackButton) {
         attackButton.addEventListener(
@@ -2173,11 +1948,23 @@ function initializeActionButtons() {
         );
     }
 
-    if (interactButton) {
-        interactButton.addEventListener(
-            "click",
-            interact
-        );
+    if (interactButton) interactButton.addEventListener("click", interact);
+
+    if (mapButton && mapPanel) {
+        mapButton.addEventListener("click", () => {
+            mapPanel.hidden = false;
+            mapPanel.classList.add("open");
+        });
+    }
+    if (closeMapButton && mapPanel) {
+        const closeMap = () => {
+            mapPanel.hidden = true;
+            mapPanel.classList.remove("open");
+        };
+        closeMapButton.addEventListener("click", closeMap);
+        mapPanel.addEventListener("click", event => {
+            if (event.target === mapPanel) closeMap();
+        });
     }
 
     if (runButton) {
@@ -2317,11 +2104,10 @@ function updatePlayerMovement(deltaTime) {
 
 function updateCamera(deltaTime) {
 
-    const targetX =
-        player.x - canvas.width / 2;
-
-    const targetY =
-        player.y - canvas.height / 2;
+    const viewportWidth = canvas.clientWidth;
+    const viewportHeight = canvas.clientHeight;
+    const targetX = player.x - viewportWidth / 2;
+    const targetY = player.y - viewportHeight / 2;
 
     const smoothing = Math.min(
         1,
@@ -2337,7 +2123,7 @@ function updateCamera(deltaTime) {
     camera.x = Math.max(
         0,
         Math.min(
-            world.width - canvas.width,
+            world.width - viewportWidth,
             camera.x
         )
     );
@@ -2345,7 +2131,7 @@ function updateCamera(deltaTime) {
     camera.y = Math.max(
         0,
         Math.min(
-            world.height - canvas.height,
+            world.height - viewportHeight,
             camera.y
         )
     );
@@ -2376,43 +2162,16 @@ function distance(a, b) {
 ========================================================= */
 
 function updateInteractionHint() {
-
-    const hint = getElement("interactionHint");
-
+    const hint = getElement("interaction");
     if (!hint) return;
-
     let closest = Infinity;
-
-    const collections = [
-        mushrooms,
-        woods,
-        stones
-    ];
-
-    for (const collection of collections) {
-
+    for (const collection of [mushrooms, woods, stones]) {
         for (const object of collection) {
-
-            if (object.collected) continue;
-
-            closest = Math.min(
-                closest,
-                distance(player, object)
-            );
+            if (!object.collected) closest = Math.min(closest, distance(player, object));
         }
     }
-
-    if (closest < 55) {
-
-        hint.textContent =
-            "E / INTERAGIR";
-
-        hint.classList.add("visible");
-
-    } else {
-
-        hint.classList.remove("visible");
-    }
+    if (closest < 55) hint.classList.add("visible");
+    else hint.classList.remove("visible");
 }
 
 /* =========================================================
@@ -2671,9 +2430,9 @@ function updateEnemies(deltaTime) {
         }
     }
 
-    enemies = enemies.filter(
-        enemy => !enemy.dead
-    );
+    for (let i = enemies.length - 1; i >= 0; i--) {
+        if (enemies[i].dead || enemies[i].hp <= 0) enemies.splice(i, 1);
+    }
 }
 
 /* =========================================================
@@ -4361,7 +4120,8 @@ function startGame() {
     lastFrameTime = 0;
 
     initializeControls();
-
+    const loadingScreen = getElement("loading");
+    if (loadingScreen) loadingScreen.classList.add("loaded");
     initializeEnemies();
 
     initializeHUD();
