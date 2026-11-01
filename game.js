@@ -1917,28 +1917,15 @@ function updateInteractionHint() {
 function resizeGameCanvas() {
 
     const rect = canvas.getBoundingClientRect();
+    const maxPixelRatio = window.innerWidth <= 768 ? 1.5 : 1.75;
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, maxPixelRatio);
+    const targetWidth = Math.max(1, Math.floor(rect.width * pixelRatio));
+    const targetHeight = Math.max(1, Math.floor(rect.height * pixelRatio));
 
-    const pixelRatio = Math.min(
-        window.devicePixelRatio || 1,
-        2
-    );
-
-    canvas.width = Math.floor(
-        rect.width * pixelRatio
-    );
-
-    canvas.height = Math.floor(
-        rect.height * pixelRatio
-    );
-
-    ctx.setTransform(
-        pixelRatio,
-        0,
-        0,
-        pixelRatio,
-        0,
-        0
-    );
+    // Avoid resetting the canvas backing store when its dimensions did not change.
+    if (canvas.width !== targetWidth) canvas.width = targetWidth;
+    if (canvas.height !== targetHeight) canvas.height = targetHeight;
+    ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
 }
 
 window.addEventListener(
@@ -3035,12 +3022,16 @@ function drawTrees() {
 
 function drawCollectibles() {
 
+    const viewWidth = canvas.clientWidth;
+    const viewHeight = canvas.clientHeight;
+
     for (const wood of woods) {
 
         if (wood.collected) continue;
 
         const x = wood.x - camera.x;
         const y = wood.y - camera.y;
+        if (x < -24 || y < -24 || x > viewWidth + 24 || y > viewHeight + 24) continue;
 
         ctx.save();
 
@@ -3065,6 +3056,7 @@ function drawCollectibles() {
 
         const x = stone.x - camera.x;
         const y = stone.y - camera.y;
+        if (x < -20 || y < -20 || x > viewWidth + 20 || y > viewHeight + 20) continue;
 
         ctx.fillStyle = "#818b88";
 
@@ -3086,6 +3078,7 @@ function drawCollectibles() {
 
         const x = mushroom.x - camera.x;
         const y = mushroom.y - camera.y;
+        if (x < -20 || y < -20 || x > viewWidth + 20 || y > viewHeight + 20) continue;
 
         const color = mushroom.strange
             ? "#b54ee6"
@@ -3588,69 +3581,31 @@ function drawPlayer() {
 
 function drawParticles() {
 
-    for (const particle of particles) {
+    const viewWidth = canvas.clientWidth;
+    const viewHeight = canvas.clientHeight;
+    ctx.save();
 
+    for (const particle of particles) {
         const x = particle.x - camera.x;
         const y = particle.y - camera.y;
+        if (x < -12 || y < -12 || x > viewWidth + 12 || y > viewHeight + 12) continue;
 
-        const alpha = Math.max(
-            0,
-            Math.min(
-                1,
-                particle.life /
-                    (particle.maxLife || 1)
-            )
-        );
-
-        ctx.save();
-
-        ctx.globalAlpha = alpha;
-
+        ctx.globalAlpha = Math.max(0, Math.min(1, particle.life / (particle.maxLife || 1)));
         let color = "#d6d6d6";
-
         switch (particle.type) {
-
-            case "craft":
-                color = "#e7c58a";
-                break;
-
-            case "collection":
-                color = "#a7d78b";
-                break;
-
-            case "hit":
-                color = "#e45b58";
-                break;
-
-            case "death":
-                color = "#8ca66b";
-                break;
-
-            case "dodge":
-                color = "#9db5d8";
-                break;
-
-            case "levelup":
-                color = "#f3d987";
-                break;
+            case "craft": color = "#e7c58a"; break;
+            case "collection": color = "#a7d78b"; break;
+            case "hit": color = "#e45b58"; break;
+            case "death": color = "#8ca66b"; break;
+            case "dodge": color = "#9db5d8"; break;
+            case "levelup": color = "#f3d987"; break;
         }
-
         ctx.fillStyle = color;
-
         ctx.beginPath();
-
-        ctx.arc(
-            x,
-            y,
-            particle.size || 3,
-            0,
-            Math.PI * 2
-        );
-
+        ctx.arc(x, y, particle.size || 3, 0, Math.PI * 2);
         ctx.fill();
-
-        ctx.restore();
     }
+    ctx.restore();
 }
 
 /* =========================================================
@@ -3689,22 +3644,21 @@ function renderWorld() {
 
 function updateParticles(deltaTime) {
 
-    for (const particle of particles) {
-
-        particle.x +=
-            (particle.vx || 0) * deltaTime;
-
-        particle.y +=
-            (particle.vy || 0) * deltaTime;
-
+    // Compact in place instead of repeatedly splicing the array each frame.
+    let writeIndex = 0;
+    for (let i = 0; i < particles.length; i++) {
+        const particle = particles[i];
+        particle.x += (particle.vx || 0) * deltaTime;
+        particle.y += (particle.vy || 0) * deltaTime;
         particle.life -= deltaTime;
+        if (particle.life > 0) particles[writeIndex++] = particle;
     }
+    particles.length = writeIndex;
 
-    for (let i = particles.length - 1; i >= 0; i--) {
-
-        if (particles[i].life <= 0) {
-            particles.splice(i, 1);
-        }
+    // Bound transient effects to keep memory and draw work predictable on phones.
+    const maxParticles = window.innerWidth <= 768 ? 180 : 260;
+    if (particles.length > maxParticles) {
+        particles.splice(0, particles.length - maxParticles);
     }
 }
 
@@ -3863,7 +3817,7 @@ function gameLoop(timestamp) {
     }
 
     const deltaTime = Math.min(
-        (timestamp - lastFrameTime) / 1000,
+        Math.max(0, (timestamp - lastFrameTime) / 1000),
         0.05
     );
 
@@ -3895,6 +3849,7 @@ function startGame() {
 
     initializeV2Systems();
     initializeV4Systems();
+    initializeV5Performance();
     initializeControls();
     const loadingScreen = getElement("loading");
     if (loadingScreen) loadingScreen.classList.add("loaded");
@@ -3920,6 +3875,24 @@ function startGame() {
    V2 — CLASSES, HABILIDADES E SOBREVIVÊNCIA
    Sistemas aditivos: preservam movimento, combate e HUD atuais.
 ========================================================= */
+
+/* =========================================================
+   V5 — PERFORMANCE AND MOBILE OPTIMIZATION
+   Additive optimizations; gameplay rules and controls are unchanged.
+========================================================= */
+
+let v5VisibilityHandlerReady = false;
+
+function initializeV5Performance() {
+    if (!v5VisibilityHandlerReady) {
+        document.addEventListener("visibilitychange", () => {
+            // Reset the frame clock after returning from another app or tab.
+            if (!document.hidden) lastFrameTime = 0;
+        });
+        v5VisibilityHandlerReady = true;
+    }
+    resizeGameCanvas();
+}
 
 const classProfiles = {
     warrior: {
