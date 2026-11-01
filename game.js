@@ -1876,14 +1876,18 @@ function updateInteractionHint() {
 ========================================================= */
 
 function resizeGameCanvas() {
+    if (!canvas || !ctx) return;
 
     const rect = canvas.getBoundingClientRect();
+    // Mobile browsers can briefly report a zero-sized canvas while their
+    // address/navigation bars are changing. Fall back to the visible viewport.
+    const cssWidth = Math.max(1, rect.width || window.innerWidth || document.documentElement.clientWidth);
+    const cssHeight = Math.max(1, rect.height || window.innerHeight || document.documentElement.clientHeight);
     const maxPixelRatio = window.innerWidth <= 768 ? 1.5 : 1.75;
     const pixelRatio = Math.min(window.devicePixelRatio || 1, maxPixelRatio);
-    const targetWidth = Math.max(1, Math.floor(rect.width * pixelRatio));
-    const targetHeight = Math.max(1, Math.floor(rect.height * pixelRatio));
+    const targetWidth = Math.max(1, Math.floor(cssWidth * pixelRatio));
+    const targetHeight = Math.max(1, Math.floor(cssHeight * pixelRatio));
 
-    // Avoid resetting the canvas backing store when its dimensions did not change.
     if (canvas.width !== targetWidth) canvas.width = targetWidth;
     if (canvas.height !== targetHeight) canvas.height = targetHeight;
     ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
@@ -3708,23 +3712,46 @@ function updateGame(deltaTime) {
    GAME RENDER
 ========================================================= */
 
+let darkwoodRenderError = "";
+
 function renderGame() {
+    if (!canvas || !ctx) return;
 
-    const width = canvas.clientWidth;
-    const height = canvas.clientHeight;
+    const rect = canvas.getBoundingClientRect();
+    const width = Math.max(1, canvas.clientWidth || rect.width || window.innerWidth);
+    const height = Math.max(1, canvas.clientHeight || rect.height || window.innerHeight);
 
-    ctx.clearRect(
-        0,
-        0,
-        width,
-        height
-    );
-
-    renderWorld();
-
-    if (paused) {
-        drawPauseOverlay();
+    // Keep the backing store synchronized with the actual visible canvas size.
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, window.innerWidth <= 768 ? 1.5 : 1.75);
+    const targetWidth = Math.max(1, Math.floor(width * pixelRatio));
+    const targetHeight = Math.max(1, Math.floor(height * pixelRatio));
+    if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
     }
+    ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+
+    try {
+        renderWorld();
+        darkwoodRenderError = "";
+    } catch (error) {
+        darkwoodRenderError = error && error.message ? error.message : String(error);
+        console.error("DARKWOOD render error:", error);
+        // Never leave a featureless black screen when a drawing routine fails.
+        ctx.save();
+        ctx.fillStyle = "#17271d";
+        ctx.fillRect(0, 0, width, height);
+        ctx.fillStyle = "#fff0d0";
+        ctx.font = "bold 15px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("Falha ao desenhar o mundo", width / 2, height / 2 - 12);
+        ctx.font = "12px sans-serif";
+        ctx.fillText(darkwoodRenderError.slice(0, 100), width / 2, height / 2 + 14);
+        ctx.restore();
+    }
+
+    if (paused) drawPauseOverlay();
 }
 
 /* =========================================================
@@ -3786,7 +3813,12 @@ function gameLoop(timestamp) {
     updateMessages(deltaTime);
 
     if (!paused && !gameOver) {
-        updateGame(deltaTime);
+        try {
+            updateGame(deltaTime);
+        } catch (error) {
+            darkwoodRenderError = error && error.message ? error.message : String(error);
+            console.error("DARKWOOD update error:", error);
+        }
     }
 
     renderGame();
@@ -3821,6 +3853,10 @@ function startGame() {
     initializeHUD();
 
     initializeEnvironment();
+
+    // Draw once immediately instead of waiting for the first animation frame.
+    resizeGameCanvas();
+    renderGame();
 
     updateHUD();
 
