@@ -1512,3 +1512,32 @@ button:active {
     transition-duration: 0.01ms !important;
   }
 }
+
+
+/* V4 — detalhes de equipamento e itens fabricados */
+.inventory-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+.inventory-detail-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(205, 190, 155, 0.13);
+  border-radius: 10px;
+  background: rgba(20, 28, 23, 0.72);
+  color: #d7d2c3;
+  font-size: 12px;
+}
+.inventory-detail-card strong {
+  color: #e8c98d;
+  font-size: 12px;
+}
+@media (max-width: 420px) {
+  .inventory-details { gap: 6px; }
+  .inventory-detail-card { padding: 8px; font-size: 11px; }
+}
