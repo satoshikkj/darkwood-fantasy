@@ -1,22 +1,5 @@
 const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
-
-let W = 0;
-let H = 0;
-let DPR = Math.min(window.devicePixelRatio || 1, 2);
-
-function resizeCanvas() {
-    W = window.innerWidth;
-    H = window.innerHeight;
-
-    canvas.width = W * DPR;
-    canvas.height = H * DPR;
-
-    canvas.style.width = W + "px";
-    canvas.style.height = H + "px";
-
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-}
+const ctx = canvas ? canvas.getContext("2d") : null;
 
 // Canvas sizing is handled by resizeGameCanvas() during control initialization.
 
@@ -302,23 +285,8 @@ function isBlocked(x, y, radius) {
 
 function handlePlayerDeath() {
 
-    paused = true;
-
     showMessage("Você foi vencido pela floresta.");
-
-    const panel = document.getElementById("deathPanel");
-
-    if (panel) {
-        panel.hidden = false;
-    } else {
-        const retry = confirm(
-            "Você morreu em Darkwood.\nDeseja retornar ao abrigo?"
-        );
-
-        if (retry) {
-            respawnPlayer();
-        }
-    }
+    showDeathPanel();
 }
 
 function respawnPlayer() {
@@ -469,21 +437,6 @@ function collectNearbyResources() {
 ========================================================= */
 
 
-function updateMessage(dt) {
-
-    if (messageTimer > 0) {
-        messageTimer -= dt;
-    }
-
-    if (messageTimer <= 0) {
-
-        const element = document.getElementById("message");
-
-        if (element) {
-            element.classList.remove("visible");
-        }
-    }
-}
 /* =========================================================
    INVENTORY
 ========================================================= */
@@ -1000,21 +953,29 @@ function getElement(id) {
     return document.getElementById(id);
 }
 
-function setText(id, value) {
-    const element = getElement(id);
+const hudTextCache = new Map();
+const hudWidthCache = new Map();
 
-    if (element) {
-        element.textContent = String(value);
+function setText(id, value) {
+    const nextValue = String(value);
+    if (hudTextCache.get(id) === nextValue) return;
+
+    const element = getElement(id);
+    if (element && element.textContent !== nextValue) {
+        element.textContent = nextValue;
     }
+    hudTextCache.set(id, nextValue);
 }
 
 function setWidth(id, value) {
-    const element = getElement(id);
+    const nextValue = Math.max(0, Math.min(100, Number(value) || 0)) + "%";
+    if (hudWidthCache.get(id) === nextValue) return;
 
-    if (element) {
-        element.style.width =
-            Math.max(0, Math.min(100, value)) + "%";
+    const element = getElement(id);
+    if (element && element.style.width !== nextValue) {
+        element.style.width = nextValue;
     }
+    hudWidthCache.set(id, nextValue);
 }
 
 /* =========================================================
@@ -3716,32 +3677,31 @@ function updatePlayerRecovery(deltaTime) {
    GAME UPDATE
 ========================================================= */
 
+let hudRefreshAccumulator = 0;
+const HUD_REFRESH_INTERVAL = 0.12;
+
 function updateGame(deltaTime) {
 
     if (paused || gameOver) return;
 
     updatePlayerMovement(deltaTime);
-
     updateCombat(deltaTime);
-
     updateEnemies(deltaTime);
-
     updateParticles(deltaTime);
-
     updateEnvironment(deltaTime);
-
     updateSurvival(deltaTime);
     updatePlayerRecovery(deltaTime);
-
     updateCamera(deltaTime);
-
     keepPlayerInsideWorld();
-
     updateInteractionHint();
-
     checkQuestProgress();
 
-    updateHUD();
+    // Refresh UI at a capped rate; setText/setWidth also skip unchanged DOM writes.
+    hudRefreshAccumulator += deltaTime;
+    if (hudRefreshAccumulator >= HUD_REFRESH_INTERVAL) {
+        hudRefreshAccumulator %= HUD_REFRESH_INTERVAL;
+        updateHUD();
+    }
 }
 
 /* =========================================================
@@ -3831,8 +3791,11 @@ function gameLoop(timestamp) {
 
     renderGame();
 
-    animationFrameId =
-        requestAnimationFrame(gameLoop);
+    if (!document.hidden) {
+        animationFrameId = requestAnimationFrame(gameLoop);
+    } else {
+        animationFrameId = null;
+    }
 }
 
 /* =========================================================
@@ -3867,8 +3830,9 @@ function startGame() {
         "Bem-vindo a Darkwood. Explore a floresta e colete recursos."
     );
 
-    animationFrameId =
-        requestAnimationFrame(gameLoop);
+    animationFrameId = document.hidden
+        ? null
+        : requestAnimationFrame(gameLoop);
 }
 
 /* =========================================================
@@ -3886,8 +3850,22 @@ let v5VisibilityHandlerReady = false;
 function initializeV5Performance() {
     if (!v5VisibilityHandlerReady) {
         document.addEventListener("visibilitychange", () => {
-            // Reset the frame clock after returning from another app or tab.
-            if (!document.hidden) lastFrameTime = 0;
+            if (document.hidden) {
+                // Stop rendering while the page is backgrounded to save battery and CPU.
+                if (animationFrameId !== null) {
+                    cancelAnimationFrame(animationFrameId);
+                    animationFrameId = null;
+                }
+                keysDown.clear();
+                movementInput.x = 0;
+                movementInput.y = 0;
+                movementInput.running = false;
+                joystickActive = false;
+            } else if (animationFrameId === null) {
+                // Avoid a large simulation delta when returning to the game.
+                lastFrameTime = 0;
+                animationFrameId = requestAnimationFrame(gameLoop);
+            }
         });
         v5VisibilityHandlerReady = true;
     }
