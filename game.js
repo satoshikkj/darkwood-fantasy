@@ -122,9 +122,6 @@ function randomInt(min, max) {
     return Math.floor(random(min, max + 1));
 }
 
-function distance(a, b) {
-    return Math.hypot(a.x - b.x, a.y - b.y);
-}
 
 /* =========================================================
    SHELTER
@@ -278,140 +275,21 @@ function isBlocked(x, y, radius) {
    COMBAT SYSTEM
 ========================================================= */
 
-function attack() {
-
-    if (paused || player.attackCooldown > 0) return;
-
-    player.attackCooldown = 0.42;
-    player.attackTimer = 0.18;
-
-    const damage = 25 + (player.damageBonus || 0);
-
-    let hitSomething = false;
-
-    for (const enemy of enemies) {
-
-        if (enemy.hp <= 0) continue;
-
-        const dx = enemy.x - player.x;
-        const dy = enemy.y - player.y;
-        const dist = Math.hypot(dx, dy);
-
-        if (dist > 78) continue;
-
-        const dot =
-            (dx / Math.max(dist, 1)) * player.dirX +
-            (dy / Math.max(dist, 1)) * player.dirY;
-
-        if (dot < -0.35) continue;
-
-        enemy.hp -= damage;
-        enemy.hitTimer = 0.22;
-
-        const push = 22;
-
-        enemy.x += player.dirX * push;
-        enemy.y += player.dirY * push;
-
-        createParticles(enemy.x, enemy.y, "#d9e8bc", 7);
-
-        hitSomething = true;
-
-        if (enemy.hp <= 0) {
-            defeatEnemy(enemy);
-        }
-    }
-
-    if (hitSomething) {
-        camera.shake = Math.max(camera.shake, 4);
-    }
-
-    updateHUD();
-}
 
 /* =========================================================
    ENEMY DEFEAT
 ========================================================= */
 
-function defeatEnemy(enemy) {
-
-    enemy.hp = 0;
-
-    resources.strange += 1;
-
-    addXP(20);
-
-    createParticles(enemy.x, enemy.y, "#9caf77", 18);
-
-    showMessage("Criatura derrotada! +20 XP");
-
-    if (Math.random() < 0.35) {
-        resources.mushroom += 1;
-        showMessage("Você encontrou um cogumelo.");
-    }
-
-    updateHUD();
-    updateInventoryUI();
-}
 
 /* =========================================================
    DODGE
 ========================================================= */
 
-function dodge() {
-
-    if (paused || player.dodgeCooldown > 0) return;
-
-    if (player.stamina < 18) {
-        showMessage("Você está sem resistência.");
-        return;
-    }
-
-    player.stamina -= 18;
-
-    player.dodgeCooldown = 0.75;
-    player.dodgeTimer = 0.18;
-    player.invulnerable = Math.max(player.invulnerable, 0.22);
-
-    player.x += player.dirX * 45;
-    player.y += player.dirY * 45;
-
-    player.x = Math.max(
-        player.radius,
-        Math.min(world.width - player.radius, player.x)
-    );
-
-    player.y = Math.max(
-        player.radius,
-        Math.min(world.height - player.radius, player.y)
-    );
-
-    createParticles(player.x, player.y, "#a8b8a0", 5);
-}
 
 /* =========================================================
    PLAYER DAMAGE
 ========================================================= */
 
-function damagePlayer(amount) {
-
-    if (player.invulnerable > 0 || player.hp <= 0) return;
-
-    player.hp = Math.max(0, player.hp - amount);
-
-    player.invulnerable = 0.75;
-    player.hurtTimer = 0.25;
-
-    camera.shake = Math.max(camera.shake, 7);
-
-    createParticles(player.x, player.y, "#a94343", 8);
-
-    if (player.hp <= 0) {
-        handlePlayerDeath();
-    }
-
-    updateHUD();
-}
 
 /* =========================================================
    DEATH AND RESPAWN
@@ -491,53 +369,7 @@ function createParticles(x, y, color, amount = 8) {
     }
 }
 
-function updateParticles(dt) {
 
-    for (let i = particles.length - 1; i >= 0; i--) {
-
-        const p = particles[i];
-
-        p.x += p.vx * dt;
-        p.y += p.vy * dt;
-
-        p.vx *= 0.96;
-        p.vy *= 0.96;
-
-        p.life -= dt;
-
-        if (p.life <= 0) {
-            particles.splice(i, 1);
-        }
-    }
-}
-
-function drawParticles() {
-
-    for (const p of particles) {
-
-        const alpha = Math.max(
-            0,
-            Math.min(1, p.life / p.maxLife)
-        );
-
-        ctx.globalAlpha = alpha;
-        ctx.fillStyle = p.color;
-
-        ctx.beginPath();
-
-        ctx.arc(
-            p.x - camera.x + W / 2,
-            p.y - camera.y + H / 2,
-            p.radius,
-            0,
-            Math.PI * 2
-        );
-
-        ctx.fill();
-    }
-
-    ctx.globalAlpha = 1;
-}
 
 /* =========================================================
    RESOURCE COLLECTION
@@ -626,99 +458,11 @@ function collectNearbyResources() {
    INTERACTION
 ========================================================= */
 
-function interact() {
-
-    if (paused) return;
-
-    collectNearbyResources();
-
-    if (Math.hypot(
-        player.x - campfire.x,
-        player.y - campfire.y
-    ) < 85) {
-
-        showMessage(
-            "Uma fogueira antiga. O abrigo oferece segurança."
-        );
-
-        return;
-    }
-
-    if (Math.hypot(
-        player.x - shelter.x,
-        player.y - shelter.y
-    ) < 150) {
-
-        showMessage(
-            "Você está no abrigo. Prepare-se antes de explorar."
-        );
-
-        return;
-    }
-
-    const nearbyEnemy = enemies.find(enemy =>
-        enemy.hp > 0 &&
-        Math.hypot(
-            player.x - enemy.x,
-            player.y - enemy.y
-        ) < 65
-    );
-
-    if (nearbyEnemy) {
-
-        showMessage(
-            "Uma criatura hostil se aproxima. Prepare sua arma!"
-        );
-
-        return;
-    }
-
-    const nearbyMushroom = mushrooms.find(item =>
-        !item.collected &&
-        Math.hypot(
-            player.x - item.x,
-            player.y - item.y
-        ) < 65
-    );
-
-    if (nearbyMushroom) {
-
-        nearbyMushroom.collected = true;
-
-        if (nearbyMushroom.strange) {
-            resources.strange++;
-            showMessage("Cogumelo estranho coletado!");
-        } else {
-            resources.mushroom++;
-            showMessage("Você coletou um cogumelo.");
-        }
-
-        updateHUD();
-        updateInventoryUI();
-        updateQuest();
-
-        return;
-    }
-
-    showMessage("Não há nada para interagir por perto.");
-}
 
 /* =========================================================
    MESSAGE SYSTEM
 ========================================================= */
 
-function showMessage(text, duration = 3) {
-
-    messageText = text;
-    messageTimer = duration;
-
-    const element = document.getElementById("message");
-
-    if (element) {
-        element.textContent = text;
-        element.classList.add("visible");
-    }
-}
 
 function updateMessage(dt) {
 
