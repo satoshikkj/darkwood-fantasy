@@ -285,23 +285,8 @@ function isBlocked(x, y, radius) {
 
 function handlePlayerDeath() {
 
-    paused = true;
-
     showMessage("Você foi vencido pela floresta.");
-
-    const panel = document.getElementById("deathPanel");
-
-    if (panel) {
-        panel.hidden = false;
-    } else {
-        const retry = confirm(
-            "Você morreu em Darkwood.\nDeseja retornar ao abrigo?"
-        );
-
-        if (retry) {
-            respawnPlayer();
-        }
-    }
+    showDeathPanel();
 }
 
 function respawnPlayer() {
