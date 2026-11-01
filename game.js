@@ -58,7 +58,12 @@ const player = {
 
     invulnerable: 0,
 
-    hurtTimer: 0
+    hurtTimer: 0,
+    classId: null,
+    className: "Sem classe",
+    damageBonus: 0,
+    speedMultiplier: 1,
+    maxHealthBonus: 0
 };
 
 /* =========================================================
@@ -503,18 +508,14 @@ function toggleInventory() {
 }
 
 function updateInventoryUI() {
-
-    document.getElementById("invWood").textContent =
-        resources.wood;
-
-    document.getElementById("invStone").textContent =
-        resources.stone;
-
-    document.getElementById("invMushroom").textContent =
-        resources.mushroom;
-
-    document.getElementById("invStrange").textContent =
-        resources.strange;
+    setText("invWood", resources.wood);
+    setText("invStone", resources.stone);
+    setText("invMushroom", resources.mushroom);
+    setText("invStrange", resources.strange);
+    setText("invCampfire", craftedItems.campfire || 0);
+    setText("invAxe", craftedItems.axe ? "Equipado" : "—");
+    setText("invSword", craftedItems.sword ? "Equipado" : "—");
+    setText("invPotion", craftedItems.potion || 0);
 }
 
 inventoryButton.addEventListener(
@@ -542,34 +543,19 @@ const recipes = {
 
     campfire: {
         name: "Fogueira",
-        costs: {
-            wood: 5,
-            stone: 3
-        }
+        costs: { wood: 3, stone: 2 }
     },
-
     axe: {
         name: "Machado",
-        costs: {
-            wood: 8,
-            stone: 4
-        }
+        costs: { wood: 2, stone: 2 }
     },
-
     sword: {
         name: "Espada simples",
-        costs: {
-            wood: 5,
-            stone: 8
-        }
+        costs: { wood: 1, stone: 4 }
     },
-
     potion: {
         name: "Poção simples",
-        costs: {
-            mushroom: 2,
-            wood: 1
-        }
+        costs: { mushroom: 2, strange: 1 }
     }
 };
 
@@ -598,30 +584,31 @@ function hasResources(costs) {
 }
 
 function craft(id, recipe) {
-
+    if (!recipe || !craftedItems.hasOwnProperty(id)) return;
+    if ((id === "axe" || id === "sword") && craftedItems[id] > 0) {
+        showMessage("Esse equipamento já foi fabricado.");
+        return;
+    }
     if (!hasResources(recipe.costs)) {
-
-        showMessage(
-            "Você não possui recursos suficientes."
-        );
-
+        showMessage("Você não possui recursos suficientes.");
         return;
     }
 
-    for (const key in recipe.costs) {
-
-        resources[key] -= recipe.costs[key];
-    }
-
+    for (const key in recipe.costs) resources[key] -= recipe.costs[key];
     craftedItems[id]++;
+
+    if (id === "axe") {
+        player.gatherBonus = 1;
+        showMessage("Machado equipado: coleta de madeira e pedra aprimorada.");
+    } else if (id === "sword") {
+        player.weaponBonus = 12;
+        showMessage("Espada equipada: dano de ataque aumentado.");
+    } else {
+        showMessage(recipe.name + " fabricado.");
+    }
 
     updateInventoryUI();
     updateHUD();
-
-    showMessage(
-        `${recipe.name} fabricado.`
-    );
-
     createCraftParticles();
 }
 
@@ -691,7 +678,7 @@ function attack() {
 
         if (dot < .15) continue;
 
-        damageEnemy(enemy, 25);
+        damageEnemy(enemy, 25 + (player.damageBonus || 0) + (player.weaponBonus || 0));
         enemy.x += player.dirX * 25;
         enemy.y += player.dirY * 25;
     }
@@ -837,21 +824,15 @@ function collectObject(object) {
     }
 
     else if (woods.includes(object)) {
-
-        resources.wood++;
-
-        showMessage(
-            "Madeira coletada. +1"
-        );
+        const amount = 1 + (player.gatherBonus || 0);
+        resources.wood += amount;
+        showMessage("Madeira coletada. +" + amount);
     }
 
     else if (stones.includes(object)) {
-
-        resources.stone++;
-
-        showMessage(
-            "Pedra coletada. +1"
-        );
+        const amount = 1 + (player.gatherBonus || 0);
+        resources.stone += amount;
+        showMessage("Pedra coletada. +" + amount);
     }
 
     updateHUD();
@@ -1003,6 +984,14 @@ let questCompleted = false;
 let lastMessage = "";
 let lastMessageTime = 0;
 
+const survival = {
+    hunger: 100,
+    thirst: 100,
+    damageTimer: 0
+};
+
+let specialCooldown = 0;
+
 /* =========================================================
    SAFE DOM HELPERS
 ========================================================= */
@@ -1044,6 +1033,8 @@ function updateHUD() {
     setText("v5Xp", experience);
     setWidth("v5XpBar", xpPercent);
     setText("v5Class", player.className || "Sem classe");
+    setWidth("v5Hunger", survival.hunger);
+    setWidth("v5Thirst", survival.thirst);
     setText("resourceText", "Madeira " + resources.wood + " · Pedra " + resources.stone +
         " · Cogumelos " + resources.mushroom + " · Essência " + resources.strange);
     updateInventoryUI();
@@ -1779,6 +1770,8 @@ function updatePlayerMovement(deltaTime) {
         ? movementConfig.runSpeed
         : movementConfig.walkSpeed;
 
+    speed *= player.speedMultiplier || 1;
+
     if (player.dodgeTimer > 0) {
         speed *= 2.3;
     }
@@ -1881,11 +1874,10 @@ function updateCamera(deltaTime) {
     );
 
     if (camera.shake > 0) {
-
-        camera.shake = Math.max(
-            0,
-            camera.shake - 25 * deltaTime
-        );
+        camera.shake = Math.max(0, camera.shake - 25 * deltaTime);
+        const shakeAmount = camera.shake * 0.45;
+        camera.x += random(-shakeAmount, shakeAmount);
+        camera.y += random(-shakeAmount, shakeAmount);
     }
 }
 
@@ -2308,6 +2300,8 @@ function damageEnemy(enemy, amount) {
 
 function updateCombat(deltaTime) {
 
+    updateV2Cooldowns(deltaTime);
+
     player.attackCooldown = Math.max(
         0,
         (player.attackCooldown || 0) - deltaTime
@@ -2708,10 +2702,29 @@ function updateEnvironment(deltaTime) {
    WORLD ENVIRONMENT RENDER
 ========================================================= */
 
-function drawEnvironmentEffects() {
+function drawAtmosphericLighting() {
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    const darkness = 1 - getDaylightIntensity();
+    const radius = Math.max(width, height) * 0.82;
 
+    ctx.save();
+    const gradient = ctx.createRadialGradient(
+        width * 0.5, height * 0.48, Math.min(width, height) * 0.12,
+        width * 0.5, height * 0.48, radius
+    );
+    gradient.addColorStop(0, "rgba(0,0,0,0)");
+    gradient.addColorStop(0.68, "rgba(4,8,15," + (0.08 + darkness * 0.12) + ")");
+    gradient.addColorStop(1, "rgba(2,5,12," + (0.2 + darkness * 0.28) + ")");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+    ctx.restore();
+}
+
+function drawEnvironmentEffects() {
     drawAmbientOverlay();
     drawWeather();
+    drawAtmosphericLighting();
 }
 
 /* =========================================================
@@ -3341,8 +3354,9 @@ function drawEnemies() {
 
         ctx.fill();
 
-        const enemyColor =
-            enemy.type === "goblin"
+        const enemyColor = enemy.hitTimer > 0
+            ? "#f1d5d0"
+            : enemy.type === "goblin"
                 ? "#79984b"
                 : "#5c687d";
 
@@ -3391,6 +3405,14 @@ function drawEnemies() {
             3,
             3
         );
+
+        if (enemy.state === "attack") {
+            ctx.strokeStyle = "rgba(226,91,78,0.8)";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(x, y, 22 + Math.sin(performance.now() * 0.02) * 2, 0, Math.PI * 2);
+            ctx.stroke();
+        }
 
         /* Health bar */
 
@@ -3457,12 +3479,18 @@ function drawPlayer() {
 
     ctx.fill();
 
-    /* Body */
+    /* Body — cor acompanha a classe escolhida. */
 
-    ctx.fillStyle =
-        player.hurtTimer > 0
-            ? "#d65b5b"
-            : "#536e9c";
+    const classColors = {
+        warrior: "#9b514c",
+        mage: "#7656a8",
+        rogue: "#557c55"
+    };
+    ctx.shadowColor = player.classId ? classColors[player.classId] : "transparent";
+    ctx.shadowBlur = player.classId ? 10 : 0;
+    ctx.fillStyle = player.hurtTimer > 0
+        ? "#d65b5b"
+        : classColors[player.classId] || "#536e9c";
 
     ctx.beginPath();
 
@@ -3539,12 +3567,13 @@ function drawPlayer() {
 
         ctx.beginPath();
 
+        const facingAngle = Math.atan2(player.dirY, player.dirX);
         ctx.arc(
-            x + player.dirX * 18,
-            y + player.dirY * 18,
-            25,
-            -Math.PI * 0.75,
-            Math.PI * 0.75
+            x,
+            y,
+            34,
+            facingAngle - 0.85,
+            facingAngle + 0.85
         );
 
         ctx.stroke();
@@ -3747,6 +3776,7 @@ function updateGame(deltaTime) {
 
     updateEnvironment(deltaTime);
 
+    updateSurvival(deltaTime);
     updatePlayerRecovery(deltaTime);
 
     updateCamera(deltaTime);
@@ -3863,6 +3893,8 @@ function startGame() {
 
     lastFrameTime = 0;
 
+    initializeV2Systems();
+    initializeV4Systems();
     initializeControls();
     const loadingScreen = getElement("loading");
     if (loadingScreen) loadingScreen.classList.add("loaded");
@@ -3882,6 +3914,367 @@ function startGame() {
 
     animationFrameId =
         requestAnimationFrame(gameLoop);
+}
+
+/* =========================================================
+   V2 — CLASSES, HABILIDADES E SOBREVIVÊNCIA
+   Sistemas aditivos: preservam movimento, combate e HUD atuais.
+========================================================= */
+
+const classProfiles = {
+    warrior: {
+        name: "Guerreiro",
+        damageBonus: 10,
+        speedMultiplier: 1,
+        maxHealthBonus: 25,
+        description: "Mais vida e força no combate."
+    },
+    mage: {
+        name: "Mago",
+        damageBonus: 5,
+        speedMultiplier: 1,
+        maxHealthBonus: 0,
+        description: "Especialista em explosões arcanas."
+    },
+    rogue: {
+        name: "Errante",
+        damageBonus: 3,
+        speedMultiplier: 1.12,
+        maxHealthBonus: 0,
+        description: "Mais velocidade e mobilidade."
+    }
+};
+
+function choosePlayerClass(classId) {
+    const profile = classProfiles[classId];
+    if (!profile) return;
+
+    if (player.classId && player.classId !== classId) {
+        showMessage("Sua classe já foi escolhida nesta jornada.");
+        return;
+    }
+
+    if (!player.classId) {
+        player.maxHp += profile.maxHealthBonus;
+        player.hp = player.maxHp;
+    }
+
+    player.classId = classId;
+    player.className = profile.name;
+    player.damageBonus = profile.damageBonus;
+    player.speedMultiplier = profile.speedMultiplier;
+
+    const panel = getElement("classSelection");
+    if (panel) {
+        panel.hidden = true;
+        panel.classList.remove("open");
+    }
+
+    updateHUD();
+    showMessage(profile.name + " escolhido. " + profile.description);
+    createLevelUpParticles();
+}
+
+function openClassSelection() {
+    const panel = getElement("classSelection");
+    if (!panel || paused || gameOver) return;
+    panel.hidden = false;
+    panel.classList.add("open");
+}
+
+function updateSurvival(deltaTime) {
+    if (paused || gameOver) return;
+
+    survival.hunger = Math.max(0, survival.hunger - 0.075 * deltaTime);
+    survival.thirst = Math.max(0, survival.thirst - 0.11 * deltaTime);
+
+    const nearShelter = Math.hypot(player.x - shelter.x, player.y - shelter.y) < 115;
+    if (nearShelter) {
+        survival.hunger = Math.min(100, survival.hunger + 0.18 * deltaTime);
+        survival.thirst = Math.min(100, survival.thirst + 0.55 * deltaTime);
+    }
+
+    if (survival.hunger <= 0 || survival.thirst <= 0) {
+        survival.damageTimer += deltaTime;
+        if (survival.damageTimer >= 6) {
+            survival.damageTimer = 0;
+            player.hp = Math.max(1, player.hp - 2);
+            showMessage("Você está enfraquecendo. Procure alimento e água no abrigo.");
+        }
+    } else {
+        survival.damageTimer = 0;
+    }
+}
+
+function eatMushroom() {
+    if (paused || gameOver || inventoryOpen) return;
+    if (resources.mushroom <= 0) {
+        showMessage("Você não tem cogumelos para comer.");
+        return;
+    }
+
+    resources.mushroom--;
+    survival.hunger = Math.min(100, survival.hunger + 32);
+    survival.thirst = Math.min(100, survival.thirst + 7);
+    player.hp = Math.min(player.maxHp, player.hp + 5);
+    updateHUD();
+    showMessage("Cogumelo consumido. Sua fome diminuiu.");
+    createCollectionParticles(player.x, player.y);
+}
+
+function usePotion() {
+    if (paused || gameOver || inventoryOpen) return;
+    if (!craftedItems.potion || craftedItems.potion <= 0) {
+        showMessage("Você não tem poções. Fabrique uma no inventário.");
+        return;
+    }
+    if (player.hp >= player.maxHp) {
+        showMessage("Sua vida já está cheia.");
+        return;
+    }
+
+    craftedItems.potion--;
+    player.hp = Math.min(player.maxHp, player.hp + 45);
+    updateHUD();
+    updateInventoryUI();
+    showMessage("Poção utilizada. +45 de vida.");
+    createLevelUpParticles();
+}
+
+function useSpecialAbility() {
+    if (paused || gameOver || inventoryOpen) return;
+    if (!player.classId) {
+        openClassSelection();
+        showMessage("Escolha uma classe antes de usar uma habilidade.");
+        return;
+    }
+    if (specialCooldown > 0) {
+        showMessage("Habilidade recarregando.");
+        return;
+    }
+    if (player.stamina < 35) {
+        showMessage("Vigor insuficiente para a habilidade.");
+        return;
+    }
+
+    player.stamina -= 35;
+    specialCooldown = player.classId === "rogue" ? 7 : 10;
+    player.attackTimer = 0.28;
+    camera.shake = Math.max(camera.shake, 7);
+
+    if (player.classId === "warrior") {
+        for (const enemy of enemies) {
+            if (!enemy.dead && distance(player, enemy) <= 105) {
+                damageEnemy(enemy, 42 + player.damageBonus);
+                const dx = enemy.x - player.x;
+                const dy = enemy.y - player.y;
+                const length = Math.hypot(dx, dy) || 1;
+                enemy.x += dx / length * 34;
+                enemy.y += dy / length * 34;
+            }
+        }
+        createDeathParticles(player.x, player.y);
+        showMessage("Impacto do Guerreiro!");
+    } else if (player.classId === "mage") {
+        let target = null;
+        let targetDistance = 250;
+        for (const enemy of enemies) {
+            const d = distance(player, enemy);
+            if (!enemy.dead && d < targetDistance) {
+                target = enemy;
+                targetDistance = d;
+            }
+        }
+        if (target) {
+            damageEnemy(target, 55 + player.damageBonus);
+            createHitParticles(target.x, target.y);
+            showMessage("Explosão arcana!");
+        } else {
+            createLevelUpParticles();
+            showMessage("Energia arcana liberada, mas não há inimigos próximos.");
+        }
+    } else {
+        const dashX = player.dirX * 115;
+        const dashY = player.dirY * 115;
+        const oldX = player.x;
+        const oldY = player.y;
+        player.x += dashX;
+        player.y += dashY;
+        if (collidesWithWorld(player.x, player.y)) {
+            player.x = oldX;
+            player.y = oldY;
+        }
+        for (const enemy of enemies) {
+            if (!enemy.dead && distance(player, enemy) < 65) {
+                damageEnemy(enemy, 32 + player.damageBonus);
+            }
+        }
+        player.invulnerable = Math.max(player.invulnerable, 0.35);
+        createDodgeParticles();
+        showMessage("Passo espectral!");
+    }
+
+    updateHUD();
+}
+
+function updateV2Cooldowns(deltaTime) {
+    specialCooldown = Math.max(0, specialCooldown - deltaTime);
+}
+
+function initializeV2Systems() {
+    const warrior = getElement("chooseWarrior");
+    const mage = getElement("chooseMage");
+    const rogue = getElement("chooseRogue");
+    const potion = getElement("potionButton");
+    const eat = getElement("eatButton");
+    const special = getElement("specialButton");
+    const classLabel = getElement("v5Class");
+
+    if (warrior) warrior.addEventListener("click", () => choosePlayerClass("warrior"));
+    if (mage) mage.addEventListener("click", () => choosePlayerClass("mage"));
+    if (rogue) rogue.addEventListener("click", () => choosePlayerClass("rogue"));
+    if (potion) potion.addEventListener("click", usePotion);
+    if (eat) eat.addEventListener("click", eatMushroom);
+    if (special) special.addEventListener("click", useSpecialAbility);
+    if (classLabel) classLabel.addEventListener("click", openClassSelection);
+
+    const panel = getElement("classSelection");
+    if (panel && !player.classId) {
+        panel.hidden = false;
+        panel.classList.add("open");
+    }
+}
+
+/* =========================================================
+   V4 — INVENTÁRIO, EQUIPAMENTOS E SALVAMENTO
+========================================================= */
+
+const DARKWOOD_SAVE_KEY = "darkwood-fantasy-save-v4";
+
+function saveGame() {
+    const saveData = {
+        version: 4,
+        savedAt: new Date().toISOString(),
+        player: {
+            x: player.x, y: player.y, hp: player.hp, maxHp: player.maxHp,
+            stamina: player.stamina, maxStamina: player.maxStamina,
+            classId: player.classId, className: player.className,
+            damageBonus: player.damageBonus, speedMultiplier: player.speedMultiplier,
+            weaponBonus: player.weaponBonus || 0, gatherBonus: player.gatherBonus || 0
+        },
+        resources: { ...resources },
+        craftedItems: { ...craftedItems },
+        survival: { ...survival },
+        progression: {
+            experience, playerLevel, experienceRequired, questStage,
+            worldTime, worldDay, weather
+        },
+        collected: {
+            woods: woods.map(item => !!item.collected),
+            stones: stones.map(item => !!item.collected),
+            mushrooms: mushrooms.map(item => !!item.collected)
+        },
+        enemies: enemies.map(enemy => ({
+            x: enemy.x, y: enemy.y, hp: enemy.hp, dead: !!enemy.dead,
+            type: enemy.type, state: enemy.state
+        }))
+    };
+
+    try {
+        localStorage.setItem(DARKWOOD_SAVE_KEY, JSON.stringify(saveData));
+        setText("saveStatus", "Progresso salvo neste dispositivo.");
+        showMessage("Jornada salva com sucesso.");
+        return true;
+    } catch (error) {
+        setText("saveStatus", "Não foi possível salvar neste navegador.");
+        showMessage("Falha ao salvar. Verifique o armazenamento do navegador.");
+        return false;
+    }
+}
+
+function loadGame() {
+    let data;
+    try {
+        const raw = localStorage.getItem(DARKWOOD_SAVE_KEY);
+        if (!raw) {
+            setText("saveStatus", "Nenhum progresso salvo encontrado.");
+            showMessage("Nenhum jogo salvo foi encontrado.");
+            return false;
+        }
+        data = JSON.parse(raw);
+    } catch (error) {
+        setText("saveStatus", "O arquivo salvo está inválido ou indisponível.");
+        showMessage("Não foi possível ler o progresso salvo.");
+        return false;
+    }
+
+    if (!data || data.version !== 4 || !data.player || !data.resources) {
+        setText("saveStatus", "Esse salvamento não é compatível.");
+        return false;
+    }
+
+    Object.assign(player, data.player);
+    Object.assign(resources, data.resources);
+    Object.assign(craftedItems, data.craftedItems || {});
+    Object.assign(survival, data.survival || {});
+    if (data.progression) {
+        experience = Number(data.progression.experience) || 0;
+        playerLevel = Number(data.progression.playerLevel) || 1;
+        experienceRequired = Number(data.progression.experienceRequired) || 100;
+        questStage = Number(data.progression.questStage) || 0;
+        worldTime = Number(data.progression.worldTime) || worldTimeConfig.startHour;
+        worldDay = Number(data.progression.worldDay) || 1;
+        weather = ["clear", "mist", "rain"].includes(data.progression.weather)
+            ? data.progression.weather : "clear";
+    }
+
+    const collected = data.collected || {};
+    for (const [key, array] of [["woods", woods], ["stones", stones], ["mushrooms", mushrooms]]) {
+        if (Array.isArray(collected[key])) {
+            array.forEach((item, index) => { item.collected = !!collected[key][index]; });
+        }
+    }
+
+    if (Array.isArray(data.enemies)) {
+        data.enemies.forEach((saved, index) => {
+            const enemy = enemies[index];
+            if (!enemy || !saved) return;
+            enemy.x = Number(saved.x) || enemy.x;
+            enemy.y = Number(saved.y) || enemy.y;
+            enemy.hp = Math.max(0, Number(saved.hp) || 0);
+            enemy.dead = !!saved.dead || enemy.hp <= 0;
+            enemy.state = saved.state || "idle";
+        });
+    }
+
+    paused = false;
+    gameOver = false;
+    inventoryOpen = false;
+    const inventory = getElement("inventoryPanel");
+    if (inventory) {
+        inventory.hidden = true;
+        inventory.classList.remove("open");
+    }
+    const pause = getElement("pausePanel");
+    if (pause) {
+        pause.hidden = true;
+        pause.classList.remove("open");
+    }
+
+    updateHUD();
+    updateQuest();
+    updateWorldTimeDisplay();
+    setText("saveStatus", "Progresso carregado.");
+    showMessage("Jornada restaurada.");
+    return true;
+}
+
+function initializeV4Systems() {
+    const save = getElement("saveButton");
+    const load = getElement("loadButton");
+    if (save) save.addEventListener("click", saveGame);
+    if (load) load.addEventListener("click", loadGame);
+    updateInventoryUI();
 }
 
 /* =========================================================
