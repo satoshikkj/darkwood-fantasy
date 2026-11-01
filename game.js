@@ -58,7 +58,12 @@ const player = {
 
     invulnerable: 0,
 
-    hurtTimer: 0
+    hurtTimer: 0,
+    classId: null,
+    className: "Sem classe",
+    damageBonus: 0,
+    speedMultiplier: 1,
+    maxHealthBonus: 0
 };
 
 /* =========================================================
@@ -1003,6 +1008,14 @@ let questCompleted = false;
 let lastMessage = "";
 let lastMessageTime = 0;
 
+const survival = {
+    hunger: 100,
+    thirst: 100,
+    damageTimer: 0
+};
+
+let specialCooldown = 0;
+
 /* =========================================================
    SAFE DOM HELPERS
 ========================================================= */
@@ -1044,6 +1057,8 @@ function updateHUD() {
     setText("v5Xp", experience);
     setWidth("v5XpBar", xpPercent);
     setText("v5Class", player.className || "Sem classe");
+    setWidth("v5Hunger", survival.hunger);
+    setWidth("v5Thirst", survival.thirst);
     setText("resourceText", "Madeira " + resources.wood + " · Pedra " + resources.stone +
         " · Cogumelos " + resources.mushroom + " · Essência " + resources.strange);
     updateInventoryUI();
@@ -1779,6 +1794,8 @@ function updatePlayerMovement(deltaTime) {
         ? movementConfig.runSpeed
         : movementConfig.walkSpeed;
 
+    speed *= player.speedMultiplier || 1;
+
     if (player.dodgeTimer > 0) {
         speed *= 2.3;
     }
@@ -2307,6 +2324,8 @@ function damageEnemy(enemy, amount) {
 ========================================================= */
 
 function updateCombat(deltaTime) {
+
+    updateV2Cooldowns(deltaTime);
 
     player.attackCooldown = Math.max(
         0,
@@ -3747,6 +3766,7 @@ function updateGame(deltaTime) {
 
     updateEnvironment(deltaTime);
 
+    updateSurvival(deltaTime);
     updatePlayerRecovery(deltaTime);
 
     updateCamera(deltaTime);
@@ -3863,6 +3883,7 @@ function startGame() {
 
     lastFrameTime = 0;
 
+    initializeV2Systems();
     initializeControls();
     const loadingScreen = getElement("loading");
     if (loadingScreen) loadingScreen.classList.add("loaded");
@@ -3882,6 +3903,235 @@ function startGame() {
 
     animationFrameId =
         requestAnimationFrame(gameLoop);
+}
+
+/* =========================================================
+   V2 — CLASSES, HABILIDADES E SOBREVIVÊNCIA
+   Sistemas aditivos: preservam movimento, combate e HUD atuais.
+========================================================= */
+
+const classProfiles = {
+    warrior: {
+        name: "Guerreiro",
+        damageBonus: 10,
+        speedMultiplier: 1,
+        maxHealthBonus: 25,
+        description: "Mais vida e força no combate."
+    },
+    mage: {
+        name: "Mago",
+        damageBonus: 5,
+        speedMultiplier: 1,
+        maxHealthBonus: 0,
+        description: "Especialista em explosões arcanas."
+    },
+    rogue: {
+        name: "Errante",
+        damageBonus: 3,
+        speedMultiplier: 1.12,
+        maxHealthBonus: 0,
+        description: "Mais velocidade e mobilidade."
+    }
+};
+
+function choosePlayerClass(classId) {
+    const profile = classProfiles[classId];
+    if (!profile) return;
+
+    if (player.classId && player.classId !== classId) {
+        showMessage("Sua classe já foi escolhida nesta jornada.");
+        return;
+    }
+
+    if (!player.classId) {
+        player.maxHp += profile.maxHealthBonus;
+        player.hp = player.maxHp;
+    }
+
+    player.classId = classId;
+    player.className = profile.name;
+    player.damageBonus = profile.damageBonus;
+    player.speedMultiplier = profile.speedMultiplier;
+
+    const panel = getElement("classSelection");
+    if (panel) {
+        panel.hidden = true;
+        panel.classList.remove("open");
+    }
+
+    updateHUD();
+    showMessage(profile.name + " escolhido. " + profile.description);
+    createLevelUpParticles();
+}
+
+function openClassSelection() {
+    const panel = getElement("classSelection");
+    if (!panel || paused || gameOver) return;
+    panel.hidden = false;
+    panel.classList.add("open");
+}
+
+function updateSurvival(deltaTime) {
+    if (paused || gameOver) return;
+
+    survival.hunger = Math.max(0, survival.hunger - 0.075 * deltaTime);
+    survival.thirst = Math.max(0, survival.thirst - 0.11 * deltaTime);
+
+    const nearShelter = Math.hypot(player.x - shelter.x, player.y - shelter.y) < 115;
+    if (nearShelter) {
+        survival.hunger = Math.min(100, survival.hunger + 0.18 * deltaTime);
+        survival.thirst = Math.min(100, survival.thirst + 0.55 * deltaTime);
+    }
+
+    if (survival.hunger <= 0 || survival.thirst <= 0) {
+        survival.damageTimer += deltaTime;
+        if (survival.damageTimer >= 6) {
+            survival.damageTimer = 0;
+            player.hp = Math.max(1, player.hp - 2);
+            showMessage("Você está enfraquecendo. Procure alimento e água no abrigo.");
+        }
+    } else {
+        survival.damageTimer = 0;
+    }
+}
+
+function eatMushroom() {
+    if (paused || gameOver || inventoryOpen) return;
+    if (resources.mushroom <= 0) {
+        showMessage("Você não tem cogumelos para comer.");
+        return;
+    }
+
+    resources.mushroom--;
+    survival.hunger = Math.min(100, survival.hunger + 32);
+    survival.thirst = Math.min(100, survival.thirst + 7);
+    player.hp = Math.min(player.maxHp, player.hp + 5);
+    updateHUD();
+    showMessage("Cogumelo consumido. Sua fome diminuiu.");
+    createCollectionParticles(player.x, player.y);
+}
+
+function usePotion() {
+    if (paused || gameOver || inventoryOpen) return;
+    if (!craftedItems.potion || craftedItems.potion <= 0) {
+        showMessage("Você não tem poções. Fabrique uma no inventário.");
+        return;
+    }
+    if (player.hp >= player.maxHp) {
+        showMessage("Sua vida já está cheia.");
+        return;
+    }
+
+    craftedItems.potion--;
+    player.hp = Math.min(player.maxHp, player.hp + 45);
+    updateHUD();
+    updateInventoryUI();
+    showMessage("Poção utilizada. +45 de vida.");
+    createLevelUpParticles();
+}
+
+function useSpecialAbility() {
+    if (paused || gameOver || inventoryOpen) return;
+    if (!player.classId) {
+        openClassSelection();
+        showMessage("Escolha uma classe antes de usar uma habilidade.");
+        return;
+    }
+    if (specialCooldown > 0) {
+        showMessage("Habilidade recarregando.");
+        return;
+    }
+    if (player.stamina < 35) {
+        showMessage("Vigor insuficiente para a habilidade.");
+        return;
+    }
+
+    player.stamina -= 35;
+    specialCooldown = player.classId === "rogue" ? 7 : 10;
+    player.attackTimer = 0.28;
+    camera.shake = Math.max(camera.shake, 7);
+
+    if (player.classId === "warrior") {
+        for (const enemy of enemies) {
+            if (!enemy.dead && distance(player, enemy) <= 105) {
+                damageEnemy(enemy, 42 + player.damageBonus);
+                const dx = enemy.x - player.x;
+                const dy = enemy.y - player.y;
+                const length = Math.hypot(dx, dy) || 1;
+                enemy.x += dx / length * 34;
+                enemy.y += dy / length * 34;
+            }
+        }
+        createDeathParticles(player.x, player.y);
+        showMessage("Impacto do Guerreiro!");
+    } else if (player.classId === "mage") {
+        let target = null;
+        let targetDistance = 250;
+        for (const enemy of enemies) {
+            const d = distance(player, enemy);
+            if (!enemy.dead && d < targetDistance) {
+                target = enemy;
+                targetDistance = d;
+            }
+        }
+        if (target) {
+            damageEnemy(target, 55 + player.damageBonus);
+            createHitParticles(target.x, target.y);
+            showMessage("Explosão arcana!");
+        } else {
+            createLevelUpParticles();
+            showMessage("Energia arcana liberada, mas não há inimigos próximos.");
+        }
+    } else {
+        const dashX = player.dirX * 115;
+        const dashY = player.dirY * 115;
+        const oldX = player.x;
+        const oldY = player.y;
+        player.x += dashX;
+        player.y += dashY;
+        if (collidesWithWorld(player.x, player.y)) {
+            player.x = oldX;
+            player.y = oldY;
+        }
+        for (const enemy of enemies) {
+            if (!enemy.dead && distance(player, enemy) < 65) {
+                damageEnemy(enemy, 32 + player.damageBonus);
+            }
+        }
+        player.invulnerable = Math.max(player.invulnerable, 0.35);
+        createDodgeParticles();
+        showMessage("Passo espectral!");
+    }
+
+    updateHUD();
+}
+
+function updateV2Cooldowns(deltaTime) {
+    specialCooldown = Math.max(0, specialCooldown - deltaTime);
+}
+
+function initializeV2Systems() {
+    const warrior = getElement("chooseWarrior");
+    const mage = getElement("chooseMage");
+    const rogue = getElement("chooseRogue");
+    const potion = getElement("potionButton");
+    const eat = getElement("eatButton");
+    const special = getElement("specialButton");
+    const classLabel = getElement("v5Class");
+
+    if (warrior) warrior.addEventListener("click", () => choosePlayerClass("warrior"));
+    if (mage) mage.addEventListener("click", () => choosePlayerClass("mage"));
+    if (rogue) rogue.addEventListener("click", () => choosePlayerClass("rogue"));
+    if (potion) potion.addEventListener("click", usePotion);
+    if (eat) eat.addEventListener("click", eatMushroom);
+    if (special) special.addEventListener("click", useSpecialAbility);
+    if (classLabel) classLabel.addEventListener("click", openClassSelection);
+
+    const panel = getElement("classSelection");
+    if (panel && !player.classId) {
+        panel.hidden = false;
+        panel.classList.add("open");
+    }
 }
 
 /* =========================================================
