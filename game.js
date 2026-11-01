@@ -508,18 +508,14 @@ function toggleInventory() {
 }
 
 function updateInventoryUI() {
-
-    document.getElementById("invWood").textContent =
-        resources.wood;
-
-    document.getElementById("invStone").textContent =
-        resources.stone;
-
-    document.getElementById("invMushroom").textContent =
-        resources.mushroom;
-
-    document.getElementById("invStrange").textContent =
-        resources.strange;
+    setText("invWood", resources.wood);
+    setText("invStone", resources.stone);
+    setText("invMushroom", resources.mushroom);
+    setText("invStrange", resources.strange);
+    setText("invCampfire", craftedItems.campfire || 0);
+    setText("invAxe", craftedItems.axe ? "Equipado" : "—");
+    setText("invSword", craftedItems.sword ? "Equipado" : "—");
+    setText("invPotion", craftedItems.potion || 0);
 }
 
 inventoryButton.addEventListener(
@@ -547,34 +543,19 @@ const recipes = {
 
     campfire: {
         name: "Fogueira",
-        costs: {
-            wood: 5,
-            stone: 3
-        }
+        costs: { wood: 3, stone: 2 }
     },
-
     axe: {
         name: "Machado",
-        costs: {
-            wood: 8,
-            stone: 4
-        }
+        costs: { wood: 2, stone: 2 }
     },
-
     sword: {
         name: "Espada simples",
-        costs: {
-            wood: 5,
-            stone: 8
-        }
+        costs: { wood: 1, stone: 4 }
     },
-
     potion: {
         name: "Poção simples",
-        costs: {
-            mushroom: 2,
-            wood: 1
-        }
+        costs: { mushroom: 2, strange: 1 }
     }
 };
 
@@ -603,30 +584,31 @@ function hasResources(costs) {
 }
 
 function craft(id, recipe) {
-
+    if (!recipe || !craftedItems.hasOwnProperty(id)) return;
+    if ((id === "axe" || id === "sword") && craftedItems[id] > 0) {
+        showMessage("Esse equipamento já foi fabricado.");
+        return;
+    }
     if (!hasResources(recipe.costs)) {
-
-        showMessage(
-            "Você não possui recursos suficientes."
-        );
-
+        showMessage("Você não possui recursos suficientes.");
         return;
     }
 
-    for (const key in recipe.costs) {
-
-        resources[key] -= recipe.costs[key];
-    }
-
+    for (const key in recipe.costs) resources[key] -= recipe.costs[key];
     craftedItems[id]++;
+
+    if (id === "axe") {
+        player.gatherBonus = 1;
+        showMessage("Machado equipado: coleta de madeira e pedra aprimorada.");
+    } else if (id === "sword") {
+        player.weaponBonus = 12;
+        showMessage("Espada equipada: dano de ataque aumentado.");
+    } else {
+        showMessage(recipe.name + " fabricado.");
+    }
 
     updateInventoryUI();
     updateHUD();
-
-    showMessage(
-        `${recipe.name} fabricado.`
-    );
-
     createCraftParticles();
 }
 
@@ -696,7 +678,7 @@ function attack() {
 
         if (dot < .15) continue;
 
-        damageEnemy(enemy, 25);
+        damageEnemy(enemy, 25 + (player.damageBonus || 0) + (player.weaponBonus || 0));
         enemy.x += player.dirX * 25;
         enemy.y += player.dirY * 25;
     }
@@ -842,21 +824,15 @@ function collectObject(object) {
     }
 
     else if (woods.includes(object)) {
-
-        resources.wood++;
-
-        showMessage(
-            "Madeira coletada. +1"
-        );
+        const amount = 1 + (player.gatherBonus || 0);
+        resources.wood += amount;
+        showMessage("Madeira coletada. +" + amount);
     }
 
     else if (stones.includes(object)) {
-
-        resources.stone++;
-
-        showMessage(
-            "Pedra coletada. +1"
-        );
+        const amount = 1 + (player.gatherBonus || 0);
+        resources.stone += amount;
+        showMessage("Pedra coletada. +" + amount);
     }
 
     updateHUD();
@@ -3918,6 +3894,7 @@ function startGame() {
     lastFrameTime = 0;
 
     initializeV2Systems();
+    initializeV4Systems();
     initializeControls();
     const loadingScreen = getElement("loading");
     if (loadingScreen) loadingScreen.classList.add("loaded");
@@ -4166,6 +4143,138 @@ function initializeV2Systems() {
         panel.hidden = false;
         panel.classList.add("open");
     }
+}
+
+/* =========================================================
+   V4 — INVENTÁRIO, EQUIPAMENTOS E SALVAMENTO
+========================================================= */
+
+const DARKWOOD_SAVE_KEY = "darkwood-fantasy-save-v4";
+
+function saveGame() {
+    const saveData = {
+        version: 4,
+        savedAt: new Date().toISOString(),
+        player: {
+            x: player.x, y: player.y, hp: player.hp, maxHp: player.maxHp,
+            stamina: player.stamina, maxStamina: player.maxStamina,
+            classId: player.classId, className: player.className,
+            damageBonus: player.damageBonus, speedMultiplier: player.speedMultiplier,
+            weaponBonus: player.weaponBonus || 0, gatherBonus: player.gatherBonus || 0
+        },
+        resources: { ...resources },
+        craftedItems: { ...craftedItems },
+        survival: { ...survival },
+        progression: {
+            experience, playerLevel, experienceRequired, questStage,
+            worldTime, worldDay, weather
+        },
+        collected: {
+            woods: woods.map(item => !!item.collected),
+            stones: stones.map(item => !!item.collected),
+            mushrooms: mushrooms.map(item => !!item.collected)
+        },
+        enemies: enemies.map(enemy => ({
+            x: enemy.x, y: enemy.y, hp: enemy.hp, dead: !!enemy.dead,
+            type: enemy.type, state: enemy.state
+        }))
+    };
+
+    try {
+        localStorage.setItem(DARKWOOD_SAVE_KEY, JSON.stringify(saveData));
+        setText("saveStatus", "Progresso salvo neste dispositivo.");
+        showMessage("Jornada salva com sucesso.");
+        return true;
+    } catch (error) {
+        setText("saveStatus", "Não foi possível salvar neste navegador.");
+        showMessage("Falha ao salvar. Verifique o armazenamento do navegador.");
+        return false;
+    }
+}
+
+function loadGame() {
+    let data;
+    try {
+        const raw = localStorage.getItem(DARKWOOD_SAVE_KEY);
+        if (!raw) {
+            setText("saveStatus", "Nenhum progresso salvo encontrado.");
+            showMessage("Nenhum jogo salvo foi encontrado.");
+            return false;
+        }
+        data = JSON.parse(raw);
+    } catch (error) {
+        setText("saveStatus", "O arquivo salvo está inválido ou indisponível.");
+        showMessage("Não foi possível ler o progresso salvo.");
+        return false;
+    }
+
+    if (!data || data.version !== 4 || !data.player || !data.resources) {
+        setText("saveStatus", "Esse salvamento não é compatível.");
+        return false;
+    }
+
+    Object.assign(player, data.player);
+    Object.assign(resources, data.resources);
+    Object.assign(craftedItems, data.craftedItems || {});
+    Object.assign(survival, data.survival || {});
+    if (data.progression) {
+        experience = Number(data.progression.experience) || 0;
+        playerLevel = Number(data.progression.playerLevel) || 1;
+        experienceRequired = Number(data.progression.experienceRequired) || 100;
+        questStage = Number(data.progression.questStage) || 0;
+        worldTime = Number(data.progression.worldTime) || worldTimeConfig.startHour;
+        worldDay = Number(data.progression.worldDay) || 1;
+        weather = ["clear", "mist", "rain"].includes(data.progression.weather)
+            ? data.progression.weather : "clear";
+    }
+
+    const collected = data.collected || {};
+    for (const [key, array] of [["woods", woods], ["stones", stones], ["mushrooms", mushrooms]]) {
+        if (Array.isArray(collected[key])) {
+            array.forEach((item, index) => { item.collected = !!collected[key][index]; });
+        }
+    }
+
+    if (Array.isArray(data.enemies)) {
+        data.enemies.forEach((saved, index) => {
+            const enemy = enemies[index];
+            if (!enemy || !saved) return;
+            enemy.x = Number(saved.x) || enemy.x;
+            enemy.y = Number(saved.y) || enemy.y;
+            enemy.hp = Math.max(0, Number(saved.hp) || 0);
+            enemy.dead = !!saved.dead || enemy.hp <= 0;
+            enemy.state = saved.state || "idle";
+        });
+    }
+
+    paused = false;
+    gameOver = false;
+    inventoryOpen = false;
+    const inventory = getElement("inventoryPanel");
+    if (inventory) {
+        inventory.hidden = true;
+        inventory.classList.remove("open");
+    }
+    const pause = getElement("pausePanel");
+    if (pause) {
+        pause.hidden = true;
+        pause.classList.remove("open");
+    }
+
+    updateHUD();
+    updateQuest();
+    updateWorldTimeDisplay();
+    setText("saveStatus", "Progresso carregado.");
+    showMessage("Jornada restaurada.");
+    return true;
+}
+
+function initializeV4Systems() {
+    const save = getElement("saveButton");
+    const load = getElement("loadButton");
+    if (save) save.addEventListener("click", saveGame);
+    if (load) load.addEventListener("click", loadGame);
+    updateInventoryUI();
 }
 
 /* =========================================================
